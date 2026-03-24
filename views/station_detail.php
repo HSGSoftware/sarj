@@ -1,176 +1,190 @@
 <?php
-$stationId = (int)($_GET['id'] ?? 0);
-$pageTitle = 'İstasyon Detayı – ŞarjNet';
+$stationId  = (int)($_GET['id'] ?? 0);
+$pageTitle  = 'İstasyon – ŞarjNet';
 $activePage = 'stations';
 require __DIR__ . '/partials/header.php';
 ?>
 
-<div class="page-hero mini">
-    <div class="page-hero-content">
-        <a href="<?= base_url('?page=stations') ?>" class="back-link"><i class="fa-solid fa-arrow-left"></i> İstasyonlara Dön</a>
-        <h1 id="stationTitle">Şarj İstasyonu</h1>
-        <p id="stationSubtitle">Yükleniyor...</p>
-    </div>
-</div>
+<header class="app-bar">
+    <a href="<?= base_url('?page=stations') ?>" class="app-bar-back">
+        <i class="fa-solid fa-arrow-left"></i>
+    </a>
+    <span class="app-bar-page-title">İstasyon Detayı</span>
+</header>
 
-<div class="detail-page">
-    <div class="detail-main">
-        <div class="detail-info-card" id="infoCard">
-            <div class="loading-spinner"><i class="fa-solid fa-spinner fa-spin"></i><span>Yükleniyor...</span></div>
-        </div>
-        <div class="sockets-card" id="socketsCard" style="display:none">
-            <h3><i class="fa-solid fa-plug"></i> Soketler</h3>
-            <div id="socketsList"></div>
-        </div>
+<div class="page-content">
+
+    <!-- Hero -->
+    <div class="detail-hero" id="detailHero">
+        <div class="loading-spinner" style="padding:24px 0"><i class="fa-solid fa-spinner fa-spin"></i><span>Yükleniyor...</span></div>
     </div>
 
-    <div class="detail-sidebar">
+    <!-- Map -->
+    <div class="detail-map-card" id="detailMapCard" style="display:none">
         <div id="detailMap" class="detail-map"></div>
-        <div class="nav-card">
-            <h3><i class="fa-solid fa-route"></i> Navigasyon</h3>
-            <p>İstasyona git:</p>
-            <div class="nav-buttons" id="navButtons">
-                <div class="loading-spinner"><i class="fa-solid fa-spinner fa-spin"></i></div>
-            </div>
-        </div>
-        <div class="charge-card">
-            <h3><i class="fa-solid fa-credit-card"></i> Şarj Başlat</h3>
-            <p>Demo şarj ödemesi yapın</p>
-            <a href="#" class="btn btn-primary btn-block" id="chargeBtn">
-                <i class="fa-solid fa-bolt"></i> Şarj Et & Öde
-            </a>
-        </div>
     </div>
+
+    <!-- Info -->
+    <div class="info-card" id="infoCard" style="display:none"></div>
+
+    <!-- Sockets -->
+    <div class="sockets-card" id="socketsCard" style="display:none">
+        <div class="card-header-row"><i class="fa-solid fa-plug"></i> Soketler</div>
+        <div id="socketsList"></div>
+    </div>
+
+    <!-- Navigation -->
+    <div class="nav-card" id="navCard" style="display:none">
+        <div class="card-header-row"><i class="fa-solid fa-route" style="color:var(--blue)"></i> Navigasyon</div>
+        <div id="navButtons"></div>
+    </div>
+
+    <!-- Charge CTA -->
+    <div id="chargeCta" style="display:none; margin-bottom:8px">
+        <a href="#" class="charge-cta" id="chargeLink">
+            <div class="charge-cta-icon"><i class="fa-solid fa-bolt"></i></div>
+            <div class="charge-cta-text">
+                <h4>Şarj Et & Öde</h4>
+                <p>Demo ödeme ile şarj başlat</p>
+            </div>
+            <div class="charge-cta-btn"><i class="fa-solid fa-arrow-right"></i></div>
+        </a>
+    </div>
+
+    <div style="height:8px"></div>
+
 </div>
+
+<?php require __DIR__ . '/partials/tab_bar.php'; ?>
 
 <script>
 const stationId = <?= (int)$stationId ?>;
 let detailMap = null;
 
 document.addEventListener('DOMContentLoaded', () => {
-    const date = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const date = new Date().toISOString().replace('T',' ').substring(0,19);
     fetch(`${BASE_URL}/api.php?action=detail&id=${stationId}&date=${encodeURIComponent(date)}`)
         .then(r => r.json())
         .then(s => {
             if (s.error) {
-                // fallback: stations listesinden bul
-                return fetch(BASE_URL + '/api.php?action=stations')
-                    .then(r => r.json())
-                    .then(stations => {
-                        const st = stations.find(st => st.id === stationId);
-                        if (st) renderDetail(st);
-                        else document.getElementById('infoCard').innerHTML = '<div class="error-msg"><i class="fa-solid fa-circle-exclamation"></i> İstasyon bulunamadı.</div>';
+                return fetch(BASE_URL+'/api.php?action=stations')
+                    .then(r=>r.json())
+                    .then(list => {
+                        const st = list.find(x => x.id === stationId);
+                        st ? renderDetail(st) : showError();
                     });
             }
             renderDetail(s);
-        });
+        })
+        .catch(showError);
 });
 
+function showError() {
+    document.getElementById('detailHero').innerHTML = '<div class="error-msg"><i class="fa-solid fa-circle-exclamation"></i> İstasyon bulunamadı.</div>';
+}
+
 function renderDetail(s) {
-    document.getElementById('stationTitle').textContent = s.title;
-    document.getElementById('stationSubtitle').textContent = (s.brand || '') + (s.operatortitle ? ' · ' + s.operatortitle : '');
     document.title = s.title + ' – ŞarjNet';
-
+    const avail   = s.available;
     const isGreen = s.green === 'EVET';
-    const serviceLabel = s.serviceType === 'HALKA_ACIK' ? 'Halka Açık' : (s.serviceType || '—');
 
-    document.getElementById('infoCard').innerHTML = `
-        <div class="info-grid">
-            <div class="info-row">
-                <span class="info-label"><i class="fa-solid fa-charging-station"></i> İstasyon Adı</span>
-                <span class="info-value">${escapeHtml(s.title)}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label"><i class="fa-solid fa-tag"></i> Marka</span>
-                <span class="info-value">${escapeHtml(s.brand)}</span>
-            </div>
-            ${s.operatortitle ? `<div class="info-row"><span class="info-label"><i class="fa-solid fa-building"></i> İşletmeci</span><span class="info-value">${escapeHtml(s.operatortitle)}</span></div>` : ''}
-            ${s.address ? `<div class="info-row"><span class="info-label"><i class="fa-solid fa-location-dot"></i> Adres</span><span class="info-value">${escapeHtml(s.address)}</span></div>` : ''}
-            ${s.phone ? `<div class="info-row"><span class="info-label"><i class="fa-solid fa-phone"></i> Telefon</span><span class="info-value">${escapeHtml(s.phone)}</span></div>` : ''}
-            <div class="info-row">
-                <span class="info-label"><i class="fa-solid fa-hashtag"></i> ID</span>
-                <span class="info-value badge-no">${s.id}</span>
-            </div>
-            ${s.serviceType ? `<div class="info-row"><span class="info-label"><i class="fa-solid fa-users"></i> Hizmet Şekli</span><span class="info-value"><span class="badge badge-green">${serviceLabel}</span></span></div>` : ''}
-            <div class="info-row">
-                <span class="info-label"><i class="fa-solid fa-circle-dot"></i> Durum</span>
-                <span class="info-value">
-                    <span class="badge ${s.available ? 'badge-green' : 'badge-red'}">
-                        <span class="dot ${s.available ? 'dot-green' : 'dot-red'}"></span>
-                        ${s.available ? 'Müsait' : 'Dolu'}
-                    </span>
-                </span>
-            </div>
-            <div class="info-row">
-                <span class="info-label"><i class="fa-solid fa-leaf"></i> Enerji Tipi</span>
-                <span class="info-value">
-                    <span class="badge ${isGreen ? 'badge-leaf' : 'badge-gray'}">${isGreen ? '🌿 Yeşil Enerji' : 'Standart'}</span>
-                </span>
-            </div>
-            <div class="info-row">
-                <span class="info-label"><i class="fa-solid fa-plug"></i> Soket Sayısı</span>
-                <span class="info-value">${s.sockets ? s.sockets.length : 0} soket</span>
-            </div>
+    // Hero
+    document.getElementById('detailHero').innerHTML = `
+        <div class="detail-title">${escapeHtml(s.title)}</div>
+        <div class="detail-brand">
+            <i class="fa-solid fa-tag" style="color:var(--text-dim)"></i> ${escapeHtml(s.brand)}
+            ${s.operatortitle ? `<span style="color:var(--border2)">·</span> ${escapeHtml(s.operatortitle)}` : ''}
+        </div>
+        <div class="detail-badges">
+            <span class="detail-badge ${avail ? 'db-green' : 'db-red'}">
+                <span class="dot ${avail ? 'dot-green' : 'dot-red'}"></span>
+                ${avail ? 'Müsait' : 'Dolu'}
+            </span>
+            ${isGreen ? '<span class="detail-badge db-leaf">🌿 Yeşil Enerji</span>' : ''}
+            ${s.serviceType === 'HALKA_ACIK' ? '<span class="detail-badge db-orange"><i class="fa-solid fa-users"></i> Halka Açık</span>' : ''}
+            ${s.sockets ? `<span class="detail-badge db-gray"><i class="fa-solid fa-plug"></i> ${s.sockets.length} Soket</span>` : ''}
         </div>
     `;
 
+    // Info card
+    const infoCard = document.getElementById('infoCard');
+    infoCard.style.display = '';
+    const rows = [
+        s.address ? ['fa-location-dot', 'Adres', s.address] : null,
+        s.phone   ? ['fa-phone', 'Telefon', s.phone] : null,
+        ['fa-hashtag', 'İstasyon ID', `<span style="font-family:monospace;font-size:0.85rem">${s.id}</span>`],
+    ].filter(Boolean);
+
+    infoCard.innerHTML = rows.map(([icon, label, val]) => `
+        <div class="info-row">
+            <div class="info-icon"><i class="fa-solid ${icon}"></i></div>
+            <div>
+                <div class="info-label">${label}</div>
+                <div class="info-value">${escapeHtml(typeof val === 'string' && val.startsWith('<') ? null : val) || val}</div>
+            </div>
+        </div>
+    `).join('');
+
+    // Map
+    if (s.lat && s.lng) {
+        document.getElementById('detailMapCard').style.display = '';
+        initMap(s.lat, s.lng, s.title);
+
+        // Nav
+        document.getElementById('navCard').style.display = '';
+        document.getElementById('navButtons').innerHTML = [
+            ['nb-gmaps',  'fa-brands fa-google', 'Google Maps', `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}`],
+            ['nb-yandex', 'fa-solid fa-map',      'Yandex Maps', `https://yandex.com.tr/maps/?rtext=~${s.lat},${s.lng}&rtt=auto`],
+            ['nb-waze',   'fa-solid fa-car',       'Waze',        `https://waze.com/ul?ll=${s.lat},${s.lng}&navigate=yes`],
+            ['nb-apple',  'fa-brands fa-apple',    'Apple Maps',  `https://maps.apple.com/?daddr=${s.lat},${s.lng}`],
+        ].map(([cls, ico, label, url]) => `
+            <a href="${url}" target="_blank" class="nav-btn ${cls}">
+                <div class="nav-btn-icon"><i class="${ico}"></i></div>
+                <span>${label}</span>
+                <i class="nav-btn-arrow fa-solid fa-arrow-up-right-from-square"></i>
+            </a>
+        `).join('');
+    }
+
+    // Sockets
     if (s.sockets && s.sockets.length > 0 && s.sockets[0].type) {
         renderSockets(s.sockets);
     }
 
-    if (s.lat && s.lng) {
-        initDetailMap(s.lat, s.lng, s.title);
-        setupNavButtons(s.lat, s.lng);
-    }
-
-    document.getElementById('chargeBtn').href = `${BASE_URL}/?page=payment&id=${s.id}&name=${encodeURIComponent(s.title)}&brand=${encodeURIComponent(s.brand || '')}`;
+    // CTA
+    document.getElementById('chargeCta').style.display = '';
+    document.getElementById('chargeLink').href = `${BASE_URL}/?page=payment&id=${s.id}&name=${encodeURIComponent(s.title)}&brand=${encodeURIComponent(s.brand||'')}`;
 }
 
 function renderSockets(sockets) {
-    const card = document.getElementById('socketsCard');
-    card.style.display = '';
+    document.getElementById('socketsCard').style.display = '';
     document.getElementById('socketsList').innerHTML = sockets.map(sk => {
-        const statusInfo = sk.availability && sk.availability[0] ? sk.availability[0].status : '';
-        const price = sk.prices && sk.prices[0] ? sk.prices[0].price : null;
+        const status = sk.availability && sk.availability[0] ? sk.availability[0].status : '';
+        const price  = sk.prices && sk.prices[0] ? sk.prices[0].price : null;
         return `
         <div class="socket-item">
-            <div class="socket-icon ${sk.type === 'DC' ? 'dc' : 'ac'}">
-                <i class="fa-solid fa-plug"></i>
-            </div>
+            <div class="socket-icon ${sk.type === 'DC' ? 'dc' : 'ac'}"><i class="fa-solid fa-plug"></i></div>
             <div class="socket-info">
-                <div class="socket-name">${escapeHtml(sk.subType || sk.type || '—')}</div>
+                <div class="socket-name">${escapeHtml(sk.subType || sk.type)}</div>
                 <div class="socket-details">
-                    <span class="socket-tag">${sk.type || ''}</span>
+                    <span class="socket-tag">${sk.type}</span>
                     ${sk.power ? `<span class="socket-power">${sk.power} kW</span>` : ''}
                     ${price !== null ? `<span class="socket-price">₺${parseFloat(price).toFixed(2)}/kWh</span>` : ''}
-                    ${statusInfo ? `<span class="socket-tag ${statusInfo === 'FREE' ? 'tag-free' : 'tag-busy'}">${statusInfo === 'FREE' ? 'Serbest' : statusInfo}</span>` : ''}
-                    ${sk.socketNumber ? `<span class="socket-no">${escapeHtml(sk.socketNumber)}</span>` : ''}
+                    ${status ? `<span class="socket-tag ${status==='FREE'?'tag-free':'tag-busy'}">${status==='FREE'?'Serbest':'Meşgul'}</span>` : ''}
                 </div>
             </div>
         </div>`;
     }).join('');
 }
 
-function initDetailMap(lat, lng, title) {
+function initMap(lat, lng, title) {
     detailMap = L.map('detailMap').setView([lat, lng], 15);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap', maxZoom: 19 }).addTo(detailMap);
-    const icon = L.divIcon({ className: '', html: '<div class="map-pin green-pin large"><i class="fa-solid fa-charging-station"></i></div>', iconSize: [40,40], iconAnchor: [20,20] });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OSM', maxZoom:19 }).addTo(detailMap);
+    const icon = L.divIcon({ className:'', html:'<div class="map-pin green-pin large"><i class="fa-solid fa-charging-station"></i></div>', iconSize:[40,40], iconAnchor:[20,20] });
     L.marker([lat, lng], { icon }).addTo(detailMap).bindPopup(escapeHtml(title)).openPopup();
 }
 
-function setupNavButtons(lat, lng) {
-    document.getElementById('navButtons').innerHTML = `
-        <a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}" target="_blank" class="nav-btn gmaps"><i class="fa-brands fa-google"></i> Google Maps</a>
-        <a href="https://yandex.com.tr/maps/?rtext=~${lat},${lng}&rtt=auto" target="_blank" class="nav-btn yandex"><i class="fa-solid fa-map"></i> Yandex Maps</a>
-        <a href="https://waze.com/ul?ll=${lat},${lng}&navigate=yes" target="_blank" class="nav-btn waze"><i class="fa-solid fa-car"></i> Waze</a>
-        <a href="https://maps.apple.com/?daddr=${lat},${lng}" target="_blank" class="nav-btn apple"><i class="fa-brands fa-apple"></i> Apple Maps</a>
-    `;
-}
-
-function escapeHtml(str) {
-    if (!str) return '';
-    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+function escapeHtml(s) { if(!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 </script>
 
 <?php require __DIR__ . '/partials/footer.php'; ?>
