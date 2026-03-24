@@ -1,16 +1,17 @@
 <?php
-$stationNo = $_GET['no'] ?? 'ŞRJ/0001';
+$stationId   = (int)($_GET['id'] ?? 0);
 $stationName = $_GET['name'] ?? 'Şarj İstasyonu';
-$pageTitle = 'Demo Ödeme – ŞarjNet';
-$activePage = '';
+$brand       = $_GET['brand'] ?? '';
+$pageTitle   = 'Demo Ödeme – ŞarjNet';
+$activePage  = '';
 require __DIR__ . '/partials/header.php';
 ?>
 
 <div class="page-hero mini">
     <div class="page-hero-content">
-        <a href="/?page=station&no=<?= urlencode($stationNo) ?>" class="back-link"><i class="fa-solid fa-arrow-left"></i> İstasyona Dön</a>
+        <a href="/?page=station&id=<?= $stationId ?>" class="back-link"><i class="fa-solid fa-arrow-left"></i> İstasyona Dön</a>
         <h1><i class="fa-solid fa-bolt"></i> Şarj & Ödeme</h1>
-        <p><?= htmlspecialchars($stationName) ?></p>
+        <p><?= htmlspecialchars($stationName) ?><?= $brand ? ' · ' . htmlspecialchars($brand) : '' ?></p>
     </div>
 </div>
 
@@ -22,7 +23,7 @@ require __DIR__ . '/partials/header.php';
                 <div class="summary-icon"><i class="fa-solid fa-charging-station"></i></div>
                 <div>
                     <h3><?= htmlspecialchars($stationName) ?></h3>
-                    <span class="summary-no"><?= htmlspecialchars($stationNo) ?></span>
+                    <span class="summary-no">ID: <?= $stationId ?><?= $brand ? ' · ' . htmlspecialchars($brand) : '' ?></span>
                 </div>
             </div>
 
@@ -50,18 +51,9 @@ require __DIR__ . '/partials/header.php';
             </div>
 
             <div class="order-summary">
-                <div class="order-row">
-                    <span>Şarj miktarı</span>
-                    <span id="summaryKwh">20 kWh</span>
-                </div>
-                <div class="order-row">
-                    <span>Birim fiyat</span>
-                    <span>₺4,40/kWh</span>
-                </div>
-                <div class="order-row order-total">
-                    <span>Toplam</span>
-                    <span id="summaryTotal">₺88,00</span>
-                </div>
+                <div class="order-row"><span>Şarj miktarı</span><span id="summaryKwh">20 kWh</span></div>
+                <div class="order-row"><span>Birim fiyat</span><span>₺4,40/kWh</span></div>
+                <div class="order-row order-total"><span>Toplam</span><span id="summaryTotal">₺88,00</span></div>
             </div>
         </div>
 
@@ -76,12 +68,7 @@ require __DIR__ . '/partials/header.php';
                 </div>
                 <div class="form-group">
                     <label>Kart Numarası</label>
-                    <div class="card-input-wrap">
-                        <input type="text" id="cardNumber" placeholder="0000 0000 0000 0000" maxlength="19" required>
-                        <div class="card-icons">
-                            <img src="https://cdn.jsdelivr.net/gh/nickcoutsos/credit-card-js@master/images/visa.png" alt="visa" onerror="this.style.display='none'">
-                        </div>
-                    </div>
+                    <input type="text" id="cardNumber" placeholder="0000 0000 0000 0000" maxlength="19" required>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
@@ -93,12 +80,10 @@ require __DIR__ . '/partials/header.php';
                         <input type="text" id="cardCvv" placeholder="123" maxlength="4" required>
                     </div>
                 </div>
-
                 <div class="form-group">
                     <label>E-posta (makbuz için)</label>
                     <input type="email" id="cardEmail" placeholder="ornek@email.com">
                 </div>
-
                 <button type="submit" class="btn btn-primary btn-block btn-pay" id="payBtn">
                     <i class="fa-solid fa-lock"></i>
                     <span>Güvenli Ödeme Yap – <span id="payBtnAmount">₺88,00</span></span>
@@ -115,30 +100,29 @@ require __DIR__ . '/partials/header.php';
 </div>
 
 <script>
-const stationNo = '<?= htmlspecialchars($stationNo, ENT_QUOTES) ?>';
-const stationName = '<?= htmlspecialchars($stationName, ENT_QUOTES) ?>';
-let selectedKwh = 20;
+const stationId   = <?= (int)$stationId ?>;
+const stationName = <?= json_encode($stationName) ?>;
+let selectedKwh   = 20;
 let selectedPrice = '88.00';
 
 document.querySelectorAll('.charge-opt').forEach(btn => {
     btn.addEventListener('click', () => {
         document.querySelectorAll('.charge-opt').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        selectedKwh = btn.dataset.kwh;
+        selectedKwh   = btn.dataset.kwh;
         selectedPrice = btn.dataset.price;
-        document.getElementById('summaryKwh').textContent = selectedKwh + ' kWh';
-        document.getElementById('summaryTotal').textContent = '₺' + parseFloat(selectedPrice).toLocaleString('tr', {minimumFractionDigits: 2});
-        document.getElementById('payBtnAmount').textContent = '₺' + parseFloat(selectedPrice).toLocaleString('tr', {minimumFractionDigits: 2});
+        document.getElementById('summaryKwh').textContent   = selectedKwh + ' kWh';
+        document.getElementById('summaryTotal').textContent = '₺' + parseFloat(selectedPrice).toLocaleString('tr', {minimumFractionDigits:2});
+        document.getElementById('payBtnAmount').textContent = '₺' + parseFloat(selectedPrice).toLocaleString('tr', {minimumFractionDigits:2});
     });
 });
 
 document.getElementById('cardNumber').addEventListener('input', function() {
-    let v = this.value.replace(/\D/g, '').substring(0, 16);
-    this.value = v.replace(/(.{4})/g, '$1 ').trim();
+    let v = this.value.replace(/\D/g,'').substring(0,16);
+    this.value = v.replace(/(.{4})/g,'$1 ').trim();
 });
-
 document.getElementById('cardExpiry').addEventListener('input', function() {
-    let v = this.value.replace(/\D/g, '');
+    let v = this.value.replace(/\D/g,'');
     if (v.length >= 2) v = v.substring(0,2) + '/' + v.substring(2,4);
     this.value = v;
 });
@@ -148,15 +132,9 @@ function processPayment(e) {
     const btn = document.getElementById('payBtn');
     btn.disabled = true;
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> İşleniyor...';
-
     setTimeout(() => {
-        const params = new URLSearchParams({
-            no: stationNo,
-            name: stationName,
-            kwh: selectedKwh,
-            price: selectedPrice
-        });
-        window.location.href = '/?page=payment_success&' + params.toString();
+        const p = new URLSearchParams({ id: stationId, name: stationName, kwh: selectedKwh, price: selectedPrice });
+        window.location.href = '/?page=payment_success&' + p.toString();
     }, 2000);
 }
 </script>

@@ -9,24 +9,38 @@ require __DIR__ . '/partials/header.php';
     <div class="map-sidebar" id="mapSidebar">
         <div class="sidebar-header">
             <h2><i class="fa-solid fa-map-location-dot"></i> İstasyonlar</h2>
-            <button class="sidebar-toggle-btn" id="sidebarToggle" title="Sidebar'ı kapat">
+            <button class="sidebar-toggle-btn" id="sidebarToggle">
                 <i class="fa-solid fa-chevron-left"></i>
             </button>
         </div>
 
         <div class="search-box">
             <i class="fa-solid fa-magnifying-glass"></i>
-            <input type="text" id="searchInput" placeholder="İstasyon veya adres ara...">
+            <input type="text" id="searchInput" placeholder="İstasyon adı veya marka ara...">
         </div>
 
         <div class="filter-row">
-            <select id="filterType" class="filter-select">
+            <select id="filterGreen" class="filter-select">
                 <option value="">Tüm Tipler</option>
-                <option value="HALKA_ACIK">Halka Açık</option>
-                <option value="OZEL">Özel</option>
+                <option value="EVET">Yeşil Enerji</option>
+                <option value="HAYIR">Standart</option>
             </select>
             <select id="filterBrand" class="filter-select">
                 <option value="">Tüm Markalar</option>
+            </select>
+        </div>
+
+        <div class="filter-row">
+            <select id="filterAvail" class="filter-select">
+                <option value="">Tüm Durumlar</option>
+                <option value="1">Müsait</option>
+                <option value="0">Dolu</option>
+            </select>
+            <select id="filterSockets" class="filter-select">
+                <option value="">Soket Sayısı</option>
+                <option value="1">1+</option>
+                <option value="3">3+</option>
+                <option value="6">6+</option>
             </select>
         </div>
 
@@ -49,8 +63,8 @@ require __DIR__ . '/partials/header.php';
             <button class="map-ctrl-btn" id="locateBtn" title="Konumumu bul">
                 <i class="fa-solid fa-location-crosshairs"></i>
             </button>
-            <button class="map-ctrl-btn" id="clusterToggle" title="Kümelemeyi aç/kapat">
-                <i class="fa-solid fa-layer-group"></i>
+            <button class="map-ctrl-btn" id="fitBtn" title="Tüm istasyonları göster">
+                <i class="fa-solid fa-expand"></i>
             </button>
         </div>
 
@@ -60,18 +74,15 @@ require __DIR__ . '/partials/header.php';
 
 <script>
 let allStations = [];
-let markers = [];
+let markers     = [];
 let map;
-let userMarker = null;
-let activeFilter = { type: '', brand: '', search: '' };
+let userMarker  = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     map = L.map('fullMap', { zoomControl: false }).setView([39.0, 35.0], 6);
     L.control.zoom({ position: 'bottomright' }).addTo(map);
-
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap',
-        maxZoom: 19
+        attribution: '© OpenStreetMap', maxZoom: 19
     }).addTo(map);
 
     fetch('/api.php?action=stations')
@@ -79,15 +90,20 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(data => {
             allStations = data;
             populateBrandFilter(data);
-            renderList(data);
-            renderMarkers(data);
+            applyFilters();
         });
 
-    document.getElementById('searchInput').addEventListener('input', applyFilters);
-    document.getElementById('filterType').addEventListener('change', applyFilters);
-    document.getElementById('filterBrand').addEventListener('change', applyFilters);
+    ['searchInput','filterGreen','filterBrand','filterAvail','filterSockets'].forEach(id => {
+        document.getElementById(id).addEventListener(id === 'searchInput' ? 'input' : 'change', applyFilters);
+    });
 
     document.getElementById('locateBtn').addEventListener('click', locateUser);
+    document.getElementById('fitBtn').addEventListener('click', () => {
+        if (markers.length) {
+            const group = L.featureGroup(markers);
+            map.fitBounds(group.getBounds(), { padding: [30, 30] });
+        }
+    });
 
     document.getElementById('sidebarToggle').addEventListener('click', () => {
         document.getElementById('mapSidebar').classList.add('collapsed');
@@ -100,27 +116,31 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function populateBrandFilter(stations) {
-    const brands = [...new Set(stations.map(s => s.sarjIstasyonuMarkaTescilBelgesiMarkaAdi).filter(Boolean))].sort();
-    const sel = document.getElementById('filterBrand');
+    const brands = [...new Set(stations.map(s => s.brand).filter(Boolean))].sort();
+    const sel    = document.getElementById('filterBrand');
     brands.forEach(b => {
-        const opt = document.createElement('option');
-        opt.value = b;
-        opt.textContent = b;
-        sel.appendChild(opt);
+        const o = document.createElement('option');
+        o.value = b; o.textContent = b;
+        sel.appendChild(o);
     });
 }
 
 function applyFilters() {
-    activeFilter.type = document.getElementById('filterType').value;
-    activeFilter.brand = document.getElementById('filterBrand').value;
-    activeFilter.search = document.getElementById('searchInput').value.toLowerCase();
+    const search  = document.getElementById('searchInput').value.toLowerCase();
+    const green   = document.getElementById('filterGreen').value;
+    const brand   = document.getElementById('filterBrand').value;
+    const avail   = document.getElementById('filterAvail').value;
+    const minSock = parseInt(document.getElementById('filterSockets').value) || 0;
 
     const filtered = allStations.filter(s => {
-        if (activeFilter.type && s.hizmetSekli !== activeFilter.type) return false;
-        if (activeFilter.brand && s.sarjIstasyonuMarkaTescilBelgesiMarkaAdi !== activeFilter.brand) return false;
-        if (activeFilter.search) {
-            const haystack = (s.sarjIstasyonuAdi + ' ' + s.adresMahalleCaddeSokak + ' ' + s.sarjIstasyonuMarkaTescilBelgesiMarkaAdi).toLowerCase();
-            if (!haystack.includes(activeFilter.search)) return false;
+        if (green   && s.green !== green) return false;
+        if (brand   && s.brand !== brand) return false;
+        if (avail === '1' && !s.available) return false;
+        if (avail === '0' && s.available)  return false;
+        if (minSock && (s.sockets || []).length < minSock) return false;
+        if (search) {
+            const h = ((s.title || '') + ' ' + (s.brand || '')).toLowerCase();
+            if (!h.includes(search)) return false;
         }
         return true;
     });
@@ -132,19 +152,23 @@ function applyFilters() {
 function renderList(stations) {
     document.getElementById('stationCount').textContent = stations.length.toLocaleString('tr') + ' istasyon';
     const list = document.getElementById('stationList');
-    if (stations.length === 0) {
+    if (!stations.length) {
         list.innerHTML = '<div class="no-results"><i class="fa-solid fa-circle-xmark"></i><p>Sonuç bulunamadı</p></div>';
         return;
     }
-    list.innerHTML = stations.slice(0, 100).map(s => `
-        <div class="station-item" onclick="focusStation(${s.lat}, ${s.lng}, '${escapeHtml(s.sarjIstasyonuNo)}')">
-            <div class="station-item-icon ${s.hizmetSekli === 'HALKA_ACIK' ? 'green' : 'orange'}">
+    list.innerHTML = stations.slice(0, 120).map(s => `
+        <div class="station-item" onclick="focusStation(${s.lat},${s.lng},${s.id})">
+            <div class="station-item-icon ${s.green === 'EVET' ? 'green' : 'orange'}">
                 <i class="fa-solid fa-charging-station"></i>
             </div>
             <div class="station-item-info">
-                <div class="station-item-name">${escapeHtml(s.sarjIstasyonuAdi)}</div>
-                <div class="station-item-sub">${escapeHtml(s.sarjIstasyonuMarkaTescilBelgesiMarkaAdi)} · ${s.hizmetSekli === 'HALKA_ACIK' ? 'Halka Açık' : 'Özel'}</div>
-                <div class="station-item-addr">${escapeHtml(s.adresMahalleCaddeSokak)}</div>
+                <div class="station-item-name">${escapeHtml(s.title)}</div>
+                <div class="station-item-sub">${escapeHtml(s.brand)} · ${s.sockets ? s.sockets.length : 0} soket</div>
+                <div class="station-item-status">
+                    <span class="dot ${s.available ? 'dot-green' : 'dot-red'}"></span>
+                    ${s.available ? 'Müsait' : 'Dolu'}
+                    ${s.green === 'EVET' ? ' · <span class="green-tag"><i class="fa-solid fa-leaf"></i> Yeşil</span>' : ''}
+                </div>
             </div>
         </div>
     `).join('');
@@ -154,59 +178,52 @@ function renderMarkers(stations) {
     markers.forEach(m => map.removeLayer(m));
     markers = [];
 
-    const greenIcon = L.divIcon({ className: '', html: '<div class="map-pin green-pin"><i class="fa-solid fa-bolt"></i></div>', iconSize: [30, 30], iconAnchor: [15, 15] });
-    const orangeIcon = L.divIcon({ className: '', html: '<div class="map-pin orange-pin"><i class="fa-solid fa-bolt"></i></div>', iconSize: [30, 30], iconAnchor: [15, 15] });
+    const makeIcon = (color) => L.divIcon({
+        className: '',
+        html: `<div class="map-pin ${color}-pin"><i class="fa-solid fa-bolt"></i></div>`,
+        iconSize: [28, 28], iconAnchor: [14, 14]
+    });
+    const gIcon = makeIcon('green');
+    const oIcon = makeIcon('orange');
+    const rIcon = makeIcon('red');
 
     stations.forEach(s => {
         if (!s.lat || !s.lng) return;
-        const icon = s.hizmetSekli === 'HALKA_ACIK' ? greenIcon : orangeIcon;
-        const m = L.marker([s.lat, s.lng], { icon })
-            .addTo(map)
-            .bindPopup(buildPopup(s));
+        let icon = s.available ? (s.green === 'EVET' ? gIcon : oIcon) : rIcon;
+        const m = L.marker([s.lat, s.lng], { icon }).addTo(map).bindPopup(buildPopup(s));
         markers.push(m);
     });
 }
 
 function buildPopup(s) {
-    const lat = s.lat, lng = s.lng;
-    const gmapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-    const yandexUrl = `https://yandex.com.tr/maps/?rtext=~${lat},${lng}&rtt=auto`;
+    const gmaps  = `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}`;
+    const yandex = `https://yandex.com.tr/maps/?rtext=~${s.lat},${s.lng}&rtt=auto`;
+    const sockCount = s.sockets ? s.sockets.length : 0;
     return `
         <div class="popup-card">
-            <div class="popup-badge ${s.hizmetSekli === 'HALKA_ACIK' ? 'badge-green' : 'badge-orange'}">
-                ${s.hizmetSekli === 'HALKA_ACIK' ? 'Halka Açık' : 'Özel'}
+            <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">
+                <span class="popup-badge ${s.available ? 'badge-green' : 'badge-red'}">${s.available ? 'Müsait' : 'Dolu'}</span>
+                ${s.green === 'EVET' ? '<span class="popup-badge badge-leaf"><i class="fa-solid fa-leaf"></i> Yeşil</span>' : ''}
             </div>
-            <h4 class="popup-title">${escapeHtml(s.sarjIstasyonuAdi)}</h4>
-            <p class="popup-brand"><i class="fa-solid fa-tag"></i> ${escapeHtml(s.sarjIstasyonuMarkaTescilBelgesiMarkaAdi)}</p>
-            <p class="popup-addr"><i class="fa-solid fa-location-dot"></i> ${escapeHtml(s.adresMahalleCaddeSokak)}</p>
-            <p class="popup-no"><i class="fa-solid fa-hashtag"></i> ${escapeHtml(s.sarjIstasyonuNo)}</p>
+            <h4 class="popup-title">${escapeHtml(s.title)}</h4>
+            <p class="popup-brand"><i class="fa-solid fa-tag"></i> ${escapeHtml(s.brand)}</p>
+            <p class="popup-no"><i class="fa-solid fa-plug"></i> ${sockCount} soket · ID: ${s.id}</p>
             <div class="popup-actions">
-                <a href="/?page=station&no=${encodeURIComponent(s.sarjIstasyonuNo)}" class="popup-btn popup-btn-primary">
-                    <i class="fa-solid fa-circle-info"></i> Detay
-                </a>
-                <a href="${gmapsUrl}" target="_blank" class="popup-btn popup-btn-nav">
-                    <i class="fa-solid fa-route"></i> Git
-                </a>
+                <a href="/?page=station&id=${s.id}" class="popup-btn popup-btn-primary"><i class="fa-solid fa-circle-info"></i> Detay</a>
+                <a href="${gmaps}" target="_blank" class="popup-btn popup-btn-nav"><i class="fa-solid fa-route"></i> Git</a>
             </div>
             <div class="popup-nav-row">
-                <a href="${yandexUrl}" target="_blank" class="popup-nav-link">
-                    <i class="fa-solid fa-map"></i> Yandex Maps
-                </a>
-                <a href="https://waze.com/ul?ll=${lat},${lng}&navigate=yes" target="_blank" class="popup-nav-link">
-                    <i class="fa-solid fa-car"></i> Waze
-                </a>
+                <a href="${yandex}" target="_blank" class="popup-nav-link"><i class="fa-solid fa-map"></i> Yandex</a>
+                <a href="https://waze.com/ul?ll=${s.lat},${s.lng}&navigate=yes" target="_blank" class="popup-nav-link"><i class="fa-solid fa-car"></i> Waze</a>
             </div>
-        </div>
-    `;
+        </div>`;
 }
 
-function focusStation(lat, lng, no) {
-    if (!lat || !lng) return;
+function focusStation(lat, lng, id) {
     map.setView([lat, lng], 16);
     markers.forEach(m => {
-        if (Math.abs(m.getLatLng().lat - lat) < 0.001 && Math.abs(m.getLatLng().lng - lng) < 0.001) {
-            m.openPopup();
-        }
+        const ll = m.getLatLng();
+        if (Math.abs(ll.lat - lat) < 0.0001 && Math.abs(ll.lng - lng) < 0.0001) m.openPopup();
     });
 }
 
@@ -216,7 +233,7 @@ function locateUser() {
         const { latitude: lat, longitude: lng } = pos.coords;
         if (userMarker) map.removeLayer(userMarker);
         userMarker = L.marker([lat, lng], {
-            icon: L.divIcon({ className: '', html: '<div class="map-pin user-pin"><i class="fa-solid fa-person"></i></div>', iconSize: [34, 34], iconAnchor: [17, 17] })
+            icon: L.divIcon({ className: '', html: '<div class="map-pin user-pin"><i class="fa-solid fa-person"></i></div>', iconSize: [34,34], iconAnchor: [17,17] })
         }).addTo(map).bindPopup('Konumunuz').openPopup();
         map.setView([lat, lng], 13);
     });
