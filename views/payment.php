@@ -9,7 +9,7 @@ require __DIR__ . '/partials/header.php';
 
 <div class="page-hero mini">
     <div class="page-hero-content">
-        <a href="/?page=station&id=<?= $stationId ?>" class="back-link"><i class="fa-solid fa-arrow-left"></i> İstasyona Dön</a>
+        <a href="<?= base_url('?page=station&id=' . $stationId) ?>" class="back-link"><i class="fa-solid fa-arrow-left"></i> İstasyona Dön</a>
         <h1><i class="fa-solid fa-bolt"></i> Şarj & Ödeme</h1>
         <p><?= htmlspecialchars($stationName) ?><?= $brand ? ' · ' . htmlspecialchars($brand) : '' ?></p>
     </div>
@@ -134,7 +134,7 @@ function processPayment(e) {
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> İşleniyor...';
     setTimeout(() => {
         const p = new URLSearchParams({ id: stationId, name: stationName, kwh: selectedKwh, price: selectedPrice });
-        window.location.href = '/?page=payment_success&' + p.toString();
+        window.location.href = BASE_URL + '/?page=payment_success&' + p.toString();
     }, 2000);
 }
 </script>

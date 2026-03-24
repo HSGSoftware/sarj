@@ -85,7 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
         attribution: '© OpenStreetMap', maxZoom: 19
     }).addTo(map);
 
-    fetch('/api.php?action=stations')
+    fetch(BASE_URL + '/api.php?action=stations')
         .then(r => r.json())
         .then(data => {
             allStations = data;
@@ -189,7 +189,7 @@ function renderMarkers(stations) {
 
     stations.forEach(s => {
         if (!s.lat || !s.lng) return;
-        let icon = s.available ? (s.green === 'EVET' ? gIcon : oIcon) : rIcon;
+        const icon = s.available ? (s.green === 'EVET' ? gIcon : oIcon) : rIcon;
         const m = L.marker([s.lat, s.lng], { icon }).addTo(map).bindPopup(buildPopup(s));
         markers.push(m);
     });
@@ -209,7 +209,7 @@ function buildPopup(s) {
             <p class="popup-brand"><i class="fa-solid fa-tag"></i> ${escapeHtml(s.brand)}</p>
             <p class="popup-no"><i class="fa-solid fa-plug"></i> ${sockCount} soket · ID: ${s.id}</p>
             <div class="popup-actions">
-                <a href="/?page=station&id=${s.id}" class="popup-btn popup-btn-primary"><i class="fa-solid fa-circle-info"></i> Detay</a>
+                <a href="${BASE_URL}/?page=station&id=${s.id}" class="popup-btn popup-btn-primary"><i class="fa-solid fa-circle-info"></i> Detay</a>
                 <a href="${gmaps}" target="_blank" class="popup-btn popup-btn-nav"><i class="fa-solid fa-route"></i> Git</a>
             </div>
             <div class="popup-nav-row">

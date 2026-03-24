@@ -50,7 +50,7 @@ let currentPage = 1;
 const PER_PAGE  = 24;
 
 document.addEventListener('DOMContentLoaded', () => {
-    fetch('/api.php?action=stations')
+    fetch(BASE_URL + '/api.php?action=stations')
         .then(r => r.json())
         .then(data => {
             allStations = data;
@@ -99,7 +99,7 @@ function renderPage() {
         const sockCount = s.sockets ? s.sockets.length : 0;
         const isGreen   = s.green === 'EVET';
         return `
-        <a href="/?page=station&id=${s.id}" class="station-card">
+        <a href="${BASE_URL}/?page=station&id=${s.id}" class="station-card">
             <div class="card-header ${isGreen ? 'card-green' : 'card-orange'}">
                 <div class="card-icon"><i class="fa-solid fa-charging-station"></i></div>
                 <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">

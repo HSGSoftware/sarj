@@ -13,10 +13,10 @@ require __DIR__ . '/partials/header.php';
         <h1 class="hero-title">Tüm Şarj İstasyonları<br><span class="gradient-text">Tek Platformda</span></h1>
         <p class="hero-subtitle">EPDK lisanslı 12.000+ şarj istasyonunu haritada görün, navigasyon başlatın ve demo ödeme yapın.</p>
         <div class="hero-actions">
-            <a href="/?page=map" class="btn btn-primary btn-lg">
+            <a href="<?= base_url('?page=map') ?>" class="btn btn-primary btn-lg">
                 <i class="fa-solid fa-map-location-dot"></i> Haritayı Aç
             </a>
-            <a href="/?page=stations" class="btn btn-outline btn-lg">
+            <a href="<?= base_url('?page=stations') ?>" class="btn btn-outline btn-lg">
                 <i class="fa-solid fa-list"></i> İstasyonları Listele
             </a>
         </div>
@@ -43,7 +43,7 @@ require __DIR__ . '/partials/header.php';
     <div class="section-container">
         <div class="section-header">
             <h2>Yakınınızdaki İstasyonlar</h2>
-            <a href="/?page=map" class="btn btn-sm btn-ghost">Tamamını gör <i class="fa-solid fa-arrow-right"></i></a>
+            <a href="<?= base_url('?page=map') ?>" class="btn btn-sm btn-ghost">Tamamını gör <i class="fa-solid fa-arrow-right"></i></a>
         </div>
         <div id="homeMap" class="home-map"></div>
     </div>
@@ -87,7 +87,7 @@ require __DIR__ . '/partials/header.php';
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    fetch('/api.php?action=stations')
+    fetch(BASE_URL + '/api.php?action=stations')
         .then(r => r.json())
         .then(stations => {
             document.getElementById('heroTotalCount').textContent = stations.length.toLocaleString('tr');
@@ -123,7 +123,7 @@ function initHomeMap(stations) {
         if (!s.lat || !s.lng) return;
         const icon = s.green === 'EVET' ? greenIcon : orangeIcon;
         L.marker([s.lat, s.lng], { icon }).addTo(map)
-         .bindPopup(`<div class="popup-content"><strong>${escapeHtml(s.title)}</strong><br><small>${escapeHtml(s.brand)}</small><br><a href="/?page=station&id=${s.id}" class="popup-link">Detay →</a></div>`);
+         .bindPopup(`<div class="popup-content"><strong>${escapeHtml(s.title)}</strong><br><small>${escapeHtml(s.brand)}</small><br><a href="${BASE_URL}/?page=station&id=${s.id}" class="popup-link">Detay →</a></div>`);
     });
 }
 

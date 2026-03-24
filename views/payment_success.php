@@ -33,10 +33,10 @@ require __DIR__ . '/partials/header.php';
         </div>
 
         <div class="success-actions">
-            <a href="/?page=station&id=<?= $stationId ?>" class="btn btn-outline">
+            <a href="<?= base_url('?page=station&id=' . $stationId) ?>" class="btn btn-outline">
                 <i class="fa-solid fa-arrow-left"></i> İstasyona Dön
             </a>
-            <a href="/?page=map" class="btn btn-primary">
+            <a href="<?= base_url('?page=map') ?>" class="btn btn-primary">
                 <i class="fa-solid fa-map-location-dot"></i> Haritaya Git
             </a>
         </div>

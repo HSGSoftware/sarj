@@ -7,7 +7,7 @@ require __DIR__ . '/partials/header.php';
 
 <div class="page-hero mini">
     <div class="page-hero-content">
-        <a href="/?page=stations" class="back-link"><i class="fa-solid fa-arrow-left"></i> İstasyonlara Dön</a>
+        <a href="<?= base_url('?page=stations') ?>" class="back-link"><i class="fa-solid fa-arrow-left"></i> İstasyonlara Dön</a>
         <h1 id="stationTitle">Şarj İstasyonu</h1>
         <p id="stationSubtitle">Yükleniyor...</p>
     </div>
@@ -49,23 +49,20 @@ let detailMap = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     const date = new Date().toISOString().replace('T', ' ').substring(0, 19);
-    fetch(`/api.php?action=detail&id=${stationId}&date=${encodeURIComponent(date)}`)
+    fetch(`${BASE_URL}/api.php?action=detail&id=${stationId}&date=${encodeURIComponent(date)}`)
         .then(r => r.json())
         .then(s => {
             if (s.error) {
-                document.getElementById('infoCard').innerHTML = '<div class="error-msg"><i class="fa-solid fa-circle-exclamation"></i> İstasyon bulunamadı.</div>';
-                return;
+                // fallback: stations listesinden bul
+                return fetch(BASE_URL + '/api.php?action=stations')
+                    .then(r => r.json())
+                    .then(stations => {
+                        const st = stations.find(st => st.id === stationId);
+                        if (st) renderDetail(st);
+                        else document.getElementById('infoCard').innerHTML = '<div class="error-msg"><i class="fa-solid fa-circle-exclamation"></i> İstasyon bulunamadı.</div>';
+                    });
             }
             renderDetail(s);
-        })
-        .catch(() => {
-            fetch('/api.php?action=stations')
-                .then(r => r.json())
-                .then(stations => {
-                    const s = stations.find(st => st.id === stationId);
-                    if (s) renderDetail(s);
-                    else document.getElementById('infoCard').innerHTML = '<div class="error-msg"><i class="fa-solid fa-circle-exclamation"></i> İstasyon bulunamadı.</div>';
-                });
         });
 });
 
@@ -126,7 +123,7 @@ function renderDetail(s) {
         setupNavButtons(s.lat, s.lng);
     }
 
-    document.getElementById('chargeBtn').href = `/?page=payment&id=${s.id}&name=${encodeURIComponent(s.title)}&brand=${encodeURIComponent(s.brand || '')}`;
+    document.getElementById('chargeBtn').href = `${BASE_URL}/?page=payment&id=${s.id}&name=${encodeURIComponent(s.title)}&brand=${encodeURIComponent(s.brand || '')}`;
 }
 
 function renderSockets(sockets) {
