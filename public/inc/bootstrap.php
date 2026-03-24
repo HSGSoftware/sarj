@@ -3,9 +3,8 @@ define('ROOT_PATH', __DIR__ . '/..');
 define('APP_NAME', 'ŞarjNet – Şarj İstasyonu Platformu');
 
 /**
- * Apache /sarj/ veya kök / her iki durumda çalışır.
- * SCRIPT_NAME = /sarj/index.php  → base = /sarj
- * SCRIPT_NAME = /index.php       → base = (boş)
+ * .htaccess gerektirmeyen URL yardımcısı.
+ * Hangi klasörde (/, /sarj/, /myapp/) olursa olsun çalışır.
  */
 function base_url(string $path = ''): string
 {
@@ -15,12 +14,30 @@ function base_url(string $path = ''): string
         $dir    = dirname($script);
         $base   = rtrim($dir === '.' ? '' : $dir, '/');
     }
-    if ($path === '') return $base === '' ? '/' : $base . '/';
+    if ($path === '') return $base . '/';
     return $base . '/' . ltrim($path, '/');
 }
 
+/** Sayfa URL'leri — mod_rewrite yok, doğrudan .php dosyaları */
+function page_url(string $page, array $params = []): string
+{
+    $files = [
+        'home'            => 'index.php',
+        'map'             => 'map.php',
+        'stations'        => 'stations.php',
+        'station'         => 'station.php',
+        'payment'         => 'payment.php',
+        'payment_success' => 'payment_success.php',
+    ];
+    $file = $files[$page] ?? 'index.php';
+    $url  = base_url($file);
+    if (!empty($params)) {
+        $url .= '?' . http_build_query($params);
+    }
+    return $url;
+}
+
 spl_autoload_register(function (string $class) {
-    // App\Api\EpdkApi → inc/EpdkApi.php  (namespace kısmını at, sadece sınıf adını al)
     $parts    = explode('\\', $class);
     $basename = end($parts);
     $file     = ROOT_PATH . '/inc/' . $basename . '.php';
