@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../src/bootstrap.php';
+require_once __DIR__ . '/inc/bootstrap.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -12,14 +12,14 @@ switch ($action) {
         break;
 
     case 'detail':
-        $id   = $_GET['id'] ?? '';
+        $id   = (int)($_GET['id'] ?? 0);
         $date = $_GET['date'] ?? date('Y-m-d H:i:s');
         if (!$id) {
             http_response_code(400);
             echo json_encode(['error' => 'id required']);
             break;
         }
-        $detail = $api->getStationDetail((int)$id, $date);
+        $detail = $api->getStationDetail($id, $date);
         if ($detail === null) {
             http_response_code(404);
             echo json_encode(['error' => 'not found']);

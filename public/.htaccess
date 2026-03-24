@@ -1,8 +1,11 @@
 Options -Indexes
+Options +FollowSymLinks
 
 RewriteEngine On
-RewriteBase /sarj/
 
+# Gerçek dosya veya klasörse dokunma
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^(.*)$ index.php [L,QSA]
+
+# Her şeyi index.php'ye yönlendir
+RewriteRule ^ index.php [L,QSA]

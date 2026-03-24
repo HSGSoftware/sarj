@@ -74,7 +74,7 @@ class EpdkApi
         }
 
         // Fallback: statik veri
-        $staticFile = ROOT_PATH . '/public/assets/stations_data.json';
+        $staticFile = ROOT_PATH . '/assets/stations_data.json';
         if (file_exists($staticFile)) {
             $data = json_decode(file_get_contents($staticFile), true);
             if ($data) {
