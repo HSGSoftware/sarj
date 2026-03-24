@@ -11,7 +11,9 @@ $stationId = (int)($_GET['id'] ?? 0);
 <div class="page-content">
 
     <div class="detail-hero" id="detailHero">
-        <div class="loading-spinner" style="padding:24px 0"><i class="fa-solid fa-spinner fa-spin"></i><span>Yükleniyor...</span></div>
+        <div class="loading-spinner" style="padding:24px 0">
+            <i class="fa-solid fa-spinner fa-spin"></i><span>Yükleniyor...</span>
+        </div>
     </div>
 
     <div class="detail-map-card" id="detailMapCard" style="display:none">
@@ -20,6 +22,7 @@ $stationId = (int)($_GET['id'] ?? 0);
 
     <div class="info-card" id="infoCard" style="display:none"></div>
 
+    <!-- Soket kartı — her zaman render edilir -->
     <div class="sockets-card" id="socketsCard" style="display:none">
         <div class="card-header-row"><i class="fa-solid fa-plug"></i> Soketler</div>
         <div id="socketsList"></div>
@@ -48,93 +51,167 @@ const stationId = <?= (int)$stationId ?>;
 let detailMap = null;
 
 document.addEventListener('DOMContentLoaded', () => {
+    if (!stationId) { showError('Geçersiz istasyon ID.'); return; }
+
     const date = new Date().toISOString().replace('T',' ').substring(0,19);
-    fetch(`${PAGES.api}?action=detail&id=${stationId}&date=${encodeURIComponent(date)}`)
-        .then(r=>r.json())
+    const detailUrl = `${PAGES.api}?action=detail&id=${stationId}&date=${encodeURIComponent(date)}`;
+
+    fetch(detailUrl)
+        .then(r => { if(!r.ok) throw new Error(r.status); return r.json(); })
         .then(s => {
-            if (s.error) {
-                return fetch(PAGES.api+'?action=stations').then(r=>r.json()).then(list=>{
-                    const st=list.find(x=>x.id===stationId);
-                    st ? renderDetail(st) : showError();
-                });
-            }
+            if (s.error) throw new Error('not found');
             renderDetail(s);
-        }).catch(showError);
+        })
+        .catch(() => {
+            // API'ye erişilemedi veya hata — stations listesinden bul
+            fetch(PAGES.api + '?action=stations')
+                .then(r => r.json())
+                .then(list => {
+                    const st = list.find(x => x.id === stationId);
+                    if (st) renderDetail(st, true);
+                    else showError('İstasyon bulunamadı.');
+                })
+                .catch(() => showError('Veri yüklenemedi.'));
+        });
 });
 
-function showError() {
-    document.getElementById('detailHero').innerHTML='<div class="error-msg"><i class="fa-solid fa-circle-exclamation"></i> İstasyon bulunamadı.</div>';
+function showError(msg) {
+    document.getElementById('detailHero').innerHTML =
+        `<div class="error-msg"><i class="fa-solid fa-circle-exclamation"></i> ${msg}</div>`;
 }
 
-function renderDetail(s) {
-    document.title = s.title+' – ŞarjNet';
-    const avail=s.available, isGreen=s.green==='EVET';
-    document.getElementById('detailHero').innerHTML=`
+function renderDetail(s, isFallback) {
+    document.title = s.title + ' – ŞarjNet';
+    const avail   = s.available;
+    const isGreen = s.green === 'EVET';
+
+    // ── Hero ──
+    document.getElementById('detailHero').innerHTML = `
         <div class="detail-title">${esc(s.title)}</div>
-        <div class="detail-brand"><i class="fa-solid fa-tag" style="color:var(--text-dim)"></i> ${esc(s.brand)}${s.operatortitle?' <span style="color:var(--border2)">·</span> '+esc(s.operatortitle):''}</div>
+        <div class="detail-brand">
+            <i class="fa-solid fa-tag" style="color:var(--text-dim)"></i> ${esc(s.brand)}
+            ${s.operatortitle ? `<span style="color:var(--border2)">·</span> ${esc(s.operatortitle)}` : ''}
+        </div>
         <div class="detail-badges">
-            <span class="detail-badge ${avail?'db-green':'db-red'}"><span class="dot ${avail?'dot-green':'dot-red'}"></span>${avail?'Müsait':'Dolu'}</span>
-            ${isGreen?'<span class="detail-badge db-leaf">🌿 Yeşil Enerji</span>':''}
-            ${s.serviceType==='HALKA_ACIK'?'<span class="detail-badge db-orange"><i class="fa-solid fa-users"></i> Halka Açık</span>':''}
-            ${s.sockets?`<span class="detail-badge db-gray"><i class="fa-solid fa-plug"></i> ${s.sockets.length} Soket</span>`:''}
+            <span class="detail-badge ${avail ? 'db-green' : 'db-red'}">
+                <span class="dot ${avail ? 'dot-green' : 'dot-red'}"></span>
+                ${avail ? 'Müsait' : 'Dolu'}
+            </span>
+            ${isGreen ? '<span class="detail-badge db-leaf">🌿 Yeşil Enerji</span>' : ''}
+            ${s.serviceType === 'HALKA_ACIK' ? '<span class="detail-badge db-orange"><i class="fa-solid fa-users"></i> Halka Açık</span>' : ''}
+            ${s.sockets ? `<span class="detail-badge db-gray"><i class="fa-solid fa-plug"></i> ${s.sockets.length} Soket</span>` : ''}
+            ${isFallback ? '<span class="detail-badge db-gray"><i class="fa-solid fa-wifi" style="opacity:.5"></i> Önbellek</span>' : ''}
         </div>`;
 
-    const ic=document.getElementById('infoCard'); ic.style.display='';
-    ic.innerHTML=[
-        s.address?['fa-location-dot','Adres',s.address]:null,
-        s.phone?['fa-phone','Telefon',s.phone]:null,
-        ['fa-hashtag','ID',`<span style="font-family:monospace">${s.id}</span>`],
-    ].filter(Boolean).map(([icon,label,val])=>`
+    // ── Info kartı ──
+    const ic = document.getElementById('infoCard');
+    ic.style.display = '';
+    ic.innerHTML = [
+        s.address  ? ['fa-location-dot', 'Adres',    esc(s.address)] : null,
+        s.phone    ? ['fa-phone',         'Telefon',  esc(s.phone)]   : null,
+        ['fa-hashtag',   'İstasyon ID',  `<span style="font-family:monospace">${s.id}</span>`],
+    ].filter(Boolean).map(([icon,label,val]) => `
         <div class="info-row">
             <div class="info-icon"><i class="fa-solid ${icon}"></i></div>
             <div><div class="info-label">${label}</div><div class="info-value">${val}</div></div>
         </div>`).join('');
 
-    if (s.lat&&s.lng) {
-        document.getElementById('detailMapCard').style.display='';
-        initMap(s.lat,s.lng,s.title);
-        document.getElementById('navCard').style.display='';
-        document.getElementById('navButtons').innerHTML=[
-            ['nb-gmaps','fa-brands fa-google','Google Maps',`https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}`],
-            ['nb-yandex','fa-solid fa-map','Yandex Maps',`https://yandex.com.tr/maps/?rtext=~${s.lat},${s.lng}&rtt=auto`],
-            ['nb-waze','fa-solid fa-car','Waze',`https://waze.com/ul?ll=${s.lat},${s.lng}&navigate=yes`],
-            ['nb-apple','fa-brands fa-apple','Apple Maps',`https://maps.apple.com/?daddr=${s.lat},${s.lng}`],
-        ].map(([cls,ico,label,url])=>`<a href="${url}" target="_blank" class="nav-btn ${cls}"><div class="nav-btn-icon"><i class="${ico}"></i></div><span>${label}</span><i class="nav-btn-arrow fa-solid fa-arrow-up-right-from-square"></i></a>`).join('');
+    // ── Harita ──
+    if (s.lat && s.lng) {
+        document.getElementById('detailMapCard').style.display = '';
+        initMap(s.lat, s.lng, s.title);
+
+        document.getElementById('navCard').style.display = '';
+        document.getElementById('navButtons').innerHTML = [
+            ['nb-gmaps',  'fa-brands fa-google', 'Google Maps', `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}`],
+            ['nb-yandex', 'fa-solid fa-map',      'Yandex Maps', `https://yandex.com.tr/maps/?rtext=~${s.lat},${s.lng}&rtt=auto`],
+            ['nb-waze',   'fa-solid fa-car',       'Waze',       `https://waze.com/ul?ll=${s.lat},${s.lng}&navigate=yes`],
+            ['nb-apple',  'fa-brands fa-apple',   'Apple Maps',  `https://maps.apple.com/?daddr=${s.lat},${s.lng}`],
+        ].map(([cls,ico,label,url]) =>
+            `<a href="${url}" target="_blank" class="nav-btn ${cls}">
+                <div class="nav-btn-icon"><i class="${ico}"></i></div>
+                <span>${label}</span>
+                <i class="nav-btn-arrow fa-solid fa-arrow-up-right-from-square"></i>
+            </a>`
+        ).join('');
     }
 
-    if (s.sockets&&s.sockets.length>0&&s.sockets[0].type) renderSockets(s.sockets);
+    // ── Soketler ──
+    renderSockets(s.sockets || [], isFallback);
 
-    document.getElementById('chargeCta').style.display='';
-    document.getElementById('chargeLink').href=`${PAGES.payment}?id=${s.id}&name=${encodeURIComponent(s.title)}&brand=${encodeURIComponent(s.brand||'')}`;
+    // ── CTA ──
+    document.getElementById('chargeCta').style.display = '';
+    document.getElementById('chargeLink').href =
+        `${PAGES.payment}?id=${s.id}&name=${encodeURIComponent(s.title)}&brand=${encodeURIComponent(s.brand||'')}`;
 }
 
-function renderSockets(sockets) {
-    document.getElementById('socketsCard').style.display='';
-    document.getElementById('socketsList').innerHTML=sockets.map(sk=>{
-        const status=sk.availability&&sk.availability[0]?sk.availability[0].status:'';
-        const price=sk.prices&&sk.prices[0]?sk.prices[0].price:null;
-        return `<div class="socket-item">
-            <div class="socket-icon ${sk.type==='DC'?'dc':'ac'}"><i class="fa-solid fa-plug"></i></div>
-            <div class="socket-info">
-                <div class="socket-name">${esc(sk.subType||sk.type)}</div>
+function renderSockets(sockets, isFallback) {
+    const card = document.getElementById('socketsCard');
+    const list = document.getElementById('socketsList');
+    card.style.display = '';
+
+    if (!sockets.length) {
+        list.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:.875rem;">Soket bilgisi bulunamadı.</div>';
+        return;
+    }
+
+    // Soket detay bilgisi var mı? (API'den geldiğinde type alanı dolu olur)
+    const hasDetail = sockets[0].type;
+
+    if (!hasDetail) {
+        // Sadece sayı bilgisi var (fallback list verisi)
+        list.innerHTML = `
+            <div class="socket-item">
+                <div class="socket-icon ac"><i class="fa-solid fa-plug"></i></div>
+                <div class="socket-info">
+                    <div class="socket-name">${sockets.length} Soket</div>
+                    <div class="socket-details">
+                        <span class="socket-tag">Detay için bağlantı bekleniyor</span>
+                    </div>
+                </div>
+            </div>`;
+        return;
+    }
+
+    list.innerHTML = sockets.map(sk => {
+        const avail  = sk.availability && sk.availability[0] ? sk.availability[0].status : null;
+        const price  = sk.price != null ? sk.price : (sk.prices && sk.prices[0] ? sk.prices[0].price : null);
+        const isDC   = sk.type === 'DC';
+
+        let statusBadge = '';
+        if (avail === 'FREE')     statusBadge = '<span class="socket-tag tag-free"><i class="fa-solid fa-circle-check"></i> Serbest</span>';
+        else if (avail)           statusBadge = `<span class="socket-tag tag-busy"><i class="fa-solid fa-circle-xmark"></i> ${avail}</span>`;
+
+        return `
+        <div class="socket-item">
+            <div class="socket-icon ${isDC ? 'dc' : 'ac'}">
+                <i class="fa-solid fa-plug"></i>
+            </div>
+            <div class="socket-info" style="flex:1">
+                <div class="socket-name">${esc(sk.subType || sk.type)}</div>
                 <div class="socket-details">
                     <span class="socket-tag">${sk.type}</span>
-                    ${sk.power?`<span class="socket-power">${sk.power} kW`:''}
-                    ${price!==null?`<span class="socket-price">₺${parseFloat(price).toFixed(2)}/kWh</span>`:''}
-                    ${status?`<span class="socket-tag ${status==='FREE'?'tag-free':'tag-busy'}">${status==='FREE'?'Serbest':'Meşgul'}</span>`:''}
+                    ${sk.power ? `<span class="socket-power">${sk.power} kW</span>` : ''}
+                    ${price != null ? `<span class="socket-price">₺${parseFloat(price).toFixed(2)}/kWh</span>` : ''}
+                    ${statusBadge}
                 </div>
+                ${sk.socketNumber ? `<div style="font-size:.7rem;color:var(--text-dim);margin-top:4px;font-family:monospace">${esc(sk.socketNumber)}</div>` : ''}
             </div>
         </div>`;
     }).join('');
 }
 
-function initMap(lat,lng,title) {
-    detailMap=L.map('detailMap').setView([lat,lng],15);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM',maxZoom:19}).addTo(detailMap);
-    L.marker([lat,lng],{icon:L.divIcon({className:'',html:'<div class="map-pin green-pin large"><i class="fa-solid fa-charging-station"></i></div>',iconSize:[40,40],iconAnchor:[20,20]})}).addTo(detailMap).bindPopup(esc(title)).openPopup();
+function initMap(lat, lng, title) {
+    detailMap = L.map('detailMap').setView([lat,lng],15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OSM', maxZoom:19 }).addTo(detailMap);
+    const icon = L.divIcon({ className:'', html:'<div class="map-pin green-pin large"><i class="fa-solid fa-charging-station"></i></div>', iconSize:[40,40], iconAnchor:[20,20] });
+    L.marker([lat,lng],{icon}).addTo(detailMap).bindPopup(esc(title)).openPopup();
 }
 
-function esc(s){if(!s)return '';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function esc(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 </script>
 
 <?php require __DIR__ . '/partials/footer.php'; ?>

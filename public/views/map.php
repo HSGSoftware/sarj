@@ -1,5 +1,19 @@
 <?php require __DIR__ . '/partials/header.php'; ?>
 
+<!-- Marker Cluster CSS/JS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
+
+<style>
+/* Cluster renkleri */
+.marker-cluster-small  { background-color: rgba(34,197,94,.3); }
+.marker-cluster-small div  { background-color: rgba(34,197,94,.7); color:#000; font-weight:700; }
+.marker-cluster-medium { background-color: rgba(249,115,22,.3); }
+.marker-cluster-medium div { background-color: rgba(249,115,22,.7); color:#000; font-weight:700; }
+.marker-cluster-large  { background-color: rgba(239,68,68,.3); }
+.marker-cluster-large div  { background-color: rgba(239,68,68,.7); color:#000; font-weight:700; }
+</style>
+
 <header class="app-bar">
     <div class="app-bar-brand">
         <div class="app-bar-icon"><i class="fa-solid fa-bolt"></i></div>
@@ -42,16 +56,22 @@
 
 <?php require __DIR__ . '/partials/tab_bar.php'; ?>
 
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script>
-let allStations=[], markers=[], map, userMarker=null, sheetOpen=false, activeFilter='all', searchVal='';
+let allStations=[], clusterGroup=null, map, userMarker=null;
+let sheetOpen=false, activeFilter='all', searchVal='';
 
 document.addEventListener('DOMContentLoaded', () => {
-    map = L.map('fullMap', { zoomControl: false }).setView([39.0, 35.0], 6);
-    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    map = L.map('fullMap', { zoomControl:false, preferCanvas:true }).setView([39.0,35.0],6);
+    L.control.zoom({ position:'bottomright' }).addTo(map);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OSM', maxZoom:19 }).addTo(map);
+
     setTimeout(() => openSheet(), 600);
 
-    fetch(PAGES.api + '?action=stations').then(r => r.json()).then(data => { allStations = data; applyFilters(); });
+    fetch(PAGES.api + '?action=stations').then(r=>r.json()).then(data => {
+        allStations = data;
+        applyFilters();
+    });
 
     document.getElementById('sheetHandle').addEventListener('click', () => sheetOpen ? closeSheet() : openSheet());
 
@@ -69,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.querySelectorAll('.filter-pill').forEach(btn => {
         btn.addEventListener('click', () => {
-            document.querySelectorAll('.filter-pill').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.filter-pill').forEach(b=>b.classList.remove('active'));
             btn.classList.add('active');
             activeFilter = btn.dataset.filter;
             applyFilters();
@@ -78,7 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('locateBtn').addEventListener('click', locateUser);
     document.getElementById('fitBtn').addEventListener('click', () => {
-        if (markers.length) map.fitBounds(L.featureGroup(markers).getBounds(), { padding:[40,40] });
+        if (clusterGroup) map.fitBounds(clusterGroup.getBounds(), { padding:[40,40] });
     });
 });
 
@@ -87,8 +107,8 @@ function closeSheet() { document.getElementById('mapSheet').classList.add('colla
 
 function applyFilters() {
     const filtered = allStations.filter(s => {
-        if (activeFilter==='avail' && !s.available) return false;
-        if (activeFilter==='green' && s.green!=='EVET') return false;
+        if (activeFilter==='avail'  && !s.available) return false;
+        if (activeFilter==='green'  && s.green!=='EVET') return false;
         if (activeFilter==='AC' && !(s.sockets||[]).some(sk=>sk.type==='AC')) return false;
         if (activeFilter==='DC' && !(s.sockets||[]).some(sk=>sk.type==='DC')) return false;
         if (searchVal && !((s.title||'')+' '+(s.brand||'')).toLowerCase().includes(searchVal)) return false;
@@ -98,35 +118,42 @@ function applyFilters() {
     renderList(filtered);
 }
 
-function renderList(stations) {
-    document.getElementById('sheetCount').textContent = stations.length.toLocaleString('tr') + ' istasyon';
-    const list = document.getElementById('sheetList');
-    if (!stations.length) { list.innerHTML='<div class="no-results"><i class="fa-solid fa-circle-xmark"></i><p>Sonuç bulunamadı</p></div>'; return; }
-    list.innerHTML = stations.slice(0,100).map(s => {
-        const color = !s.available ? 'red' : (s.green==='EVET' ? 'green' : 'orange');
-        return `<div class="sheet-station-item" onclick="focusStation(${s.lat},${s.lng},${s.id})">
-            <div class="ssi-icon ${color}"><i class="fa-solid fa-charging-station"></i></div>
-            <div class="ssi-info">
-                <div class="ssi-name">${esc(s.title)}</div>
-                <div class="ssi-brand">${esc(s.brand)}</div>
-                <div class="ssi-status"><span class="dot ${s.available?'dot-green':'dot-red'}"></span>${s.available?'Müsait':'Dolu'}${s.green==='EVET'?' · <i class="fa-solid fa-leaf" style="color:var(--green);font-size:.65rem;"></i>':''}</div>
-            </div>
-            <div class="ssi-right"><div class="ssi-sockets">${s.sockets?s.sockets.length:0} soket</div><div class="ssi-arrow"><i class="fa-solid fa-chevron-right"></i></div></div>
-        </div>`;
-    }).join('');
-}
-
 function renderMarkers(stations) {
-    markers.forEach(m => map.removeLayer(m));
-    markers = [];
-    const mk = c => L.divIcon({ className:'', html:`<div class="map-pin ${c}-pin"><i class="fa-solid fa-bolt"></i></div>`, iconSize:[26,26], iconAnchor:[13,13] });
-    const [gI,oI,rI] = [mk('green'),mk('orange'),mk('red')];
+    if (clusterGroup) map.removeLayer(clusterGroup);
+
+    clusterGroup = L.markerClusterGroup({
+        chunkedLoading: true,
+        chunkInterval: 100,
+        chunkDelay: 50,
+        maxClusterRadius: 60,
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        iconCreateFunction: function(cluster) {
+            const count = cluster.getChildCount();
+            const size  = count < 50 ? 'small' : count < 200 ? 'medium' : 'large';
+            return L.divIcon({
+                html: `<div><span>${count}</span></div>`,
+                className: `marker-cluster marker-cluster-${size}`,
+                iconSize: [40,40]
+            });
+        }
+    });
+
+    const gIcon = L.divIcon({ className:'', html:'<div class="map-pin green-pin"><i class="fa-solid fa-bolt"></i></div>', iconSize:[24,24], iconAnchor:[12,12] });
+    const oIcon = L.divIcon({ className:'', html:'<div class="map-pin orange-pin"><i class="fa-solid fa-bolt"></i></div>', iconSize:[24,24], iconAnchor:[12,12] });
+    const rIcon = L.divIcon({ className:'', html:'<div class="map-pin red-pin"><i class="fa-solid fa-bolt"></i></div>', iconSize:[24,24], iconAnchor:[12,12] });
+
+    const markers = [];
     stations.forEach(s => {
-        if (!s.lat||!s.lng) return;
-        const icon = s.available ? (s.green==='EVET'?gI:oI) : rI;
-        const m = L.marker([s.lat,s.lng],{icon}).addTo(map).bindPopup(buildPopup(s));
+        if (!s.lat || !s.lng) return;
+        const icon = s.available ? (s.green==='EVET' ? gIcon : oIcon) : rIcon;
+        const m = L.marker([s.lat, s.lng], { icon });
+        m.bindPopup(() => buildPopup(s), { maxWidth: 260 });
         markers.push(m);
     });
+
+    clusterGroup.addLayers(markers);
+    map.addLayer(clusterGroup);
 }
 
 function buildPopup(s) {
@@ -144,18 +171,47 @@ function buildPopup(s) {
     </div>`;
 }
 
-function focusStation(lat,lng) {
+function renderList(stations) {
+    document.getElementById('sheetCount').textContent = stations.length.toLocaleString('tr') + ' istasyon';
+    const list = document.getElementById('sheetList');
+    if (!stations.length) {
+        list.innerHTML='<div class="no-results"><i class="fa-solid fa-circle-xmark"></i><p>Sonuç bulunamadı</p></div>';
+        return;
+    }
+    list.innerHTML = stations.slice(0,100).map(s => {
+        const color = !s.available ? 'red' : (s.green==='EVET' ? 'green' : 'orange');
+        return `<div class="sheet-station-item" onclick="focusStation(${s.lat},${s.lng})">
+            <div class="ssi-icon ${color}"><i class="fa-solid fa-charging-station"></i></div>
+            <div class="ssi-info">
+                <div class="ssi-name">${esc(s.title)}</div>
+                <div class="ssi-brand">${esc(s.brand)}</div>
+                <div class="ssi-status">
+                    <span class="dot ${s.available?'dot-green':'dot-red'}"></span>
+                    ${s.available?'Müsait':'Dolu'}
+                    ${s.green==='EVET'?' · <i class="fa-solid fa-leaf" style="color:var(--green);font-size:.65rem;"></i>':''}
+                </div>
+            </div>
+            <div class="ssi-right">
+                <div class="ssi-sockets">${s.sockets?s.sockets.length:0} soket</div>
+                <div class="ssi-arrow"><i class="fa-solid fa-chevron-right"></i></div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function focusStation(lat, lng) {
     map.setView([lat,lng],16); closeSheet();
-    markers.forEach(m => { const l=m.getLatLng(); if(Math.abs(l.lat-lat)<0.0001&&Math.abs(l.lng-lng)<0.0001) m.openPopup(); });
 }
 
 function locateUser() {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(pos => {
-        const {latitude:lat,longitude:lng} = pos.coords;
+        const {latitude:lat, longitude:lng} = pos.coords;
         if (userMarker) map.removeLayer(userMarker);
-        userMarker = L.marker([lat,lng],{ icon:L.divIcon({className:'',html:'<div class="map-pin user-pin"><i class="fa-solid fa-person"></i></div>',iconSize:[32,32],iconAnchor:[16,16]}) }).addTo(map).bindPopup('Konumunuz').openPopup();
-        map.setView([lat,lng],13);
+        userMarker = L.marker([lat,lng], {
+            icon: L.divIcon({ className:'', html:'<div class="map-pin user-pin"><i class="fa-solid fa-person"></i></div>', iconSize:[32,32], iconAnchor:[16,16] })
+        }).addTo(map).bindPopup('Konumunuz').openPopup();
+        map.setView([lat,lng],14);
     });
 }
 
