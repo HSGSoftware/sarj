@@ -452,36 +452,50 @@ img { display: block; }
 .brand-skeleton { flex-shrink: 0; width: 90px; height: 32px; background: var(--bg3); border-radius: 99px; animation: pulse 1.5s infinite; }
 
 /* ─── MAP PAGE ─── */
-.map-page .page-content { padding-bottom: 0; }
+/* Harita sayfasında page-content yok, map-wrapper doğrudan app-shell içinde */
 .map-page .tab-bar { z-index: 500; }
 
-.map-full-container {
-  position: relative;
-  height: calc(100vh - var(--header-h));
-  height: calc(100dvh - var(--header-h));
+.map-wrapper {
+  position: fixed;
+  /* app-shell max-width 480px, ortada */
+  top: var(--header-h);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 480px;
+  /* tab-bar yüksekliği kadar boşluk bırak */
+  bottom: calc(var(--tab-h) + var(--safe-bottom));
+  z-index: 1;
 }
 
-.full-map {
+#fullMap {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
+  z-index: 1;
 }
 
-/* Map sheet (bottom drawer) */
+/* Map sheet (bottom drawer) — map-wrapper içinde */
 .map-sheet {
   position: absolute;
-  bottom: calc(var(--tab-h) + var(--safe-bottom));
-  left: 0; right: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
   background: var(--bg2);
   border-radius: 20px 20px 0 0;
   border-top: 1px solid var(--border);
-  transition: transform 0.35s cubic-bezier(.4,0,.2,1);
-  z-index: 300;
-  max-height: 70%;
+  z-index: 400;
+  max-height: 75%;
   display: flex;
   flex-direction: column;
+  transform: translateY(calc(100% - 96px));
+  transition: transform 0.35s cubic-bezier(.4,0,.2,1);
 }
 
-.map-sheet.collapsed { transform: translateY(calc(100% - 100px)); }
+.map-sheet.expanded {
+  transform: translateY(0);
+}
 
 .sheet-handle-wrap {
   padding: 10px 0 6px;
@@ -614,7 +628,7 @@ img { display: block; }
   display: flex;
   flex-direction: column;
   gap: 8px;
-  z-index: 400;
+  z-index: 500;
 }
 
 .map-fab {
