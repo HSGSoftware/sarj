@@ -82,8 +82,18 @@ function showError(msg) {
 
 function renderDetail(s, isFallback) {
     document.title = s.title + ' – ŞarjNet';
-    const avail   = s.available;
     const isGreen = s.green === 'EVET';
+
+    // Soket bazlı müsaitliği o anki saate göre hesapla
+    let avail = s.available; // varsayılan (list API'sinden gelen)
+    if (s.sockets && s.sockets.length > 0 && s.sockets[0].type) {
+        // Detay API'sinden geliyorsa soketlere bak
+        const freeCount = s.sockets.filter(sk => {
+            const slot = getActiveSlot(sk.availability);
+            return slot && slot.status === 'FREE';
+        }).length;
+        avail = freeCount > 0;
+    }
 
     // ── Hero ──
     document.getElementById('detailHero').innerHTML = `
@@ -145,6 +155,30 @@ function renderDetail(s, isFallback) {
         `${PAGES.payment}?id=${s.id}&name=${encodeURIComponent(s.title)}&brand=${encodeURIComponent(s.brand||'')}`;
 }
 
+/**
+ * availability / prices dizisindeki o anki saat aralığına uyan kaydı döner.
+ * API startTime/endTime formatı: "2026-03-24T18:18:00" veya "2026-03-24T23:59:59.999"
+ */
+function getActiveSlot(slots) {
+    if (!slots || !slots.length) return null;
+    const now = new Date();
+    for (const slot of slots) {
+        const start = new Date(slot.startTime);
+        const end   = new Date(slot.endTime);
+        if (now >= start && now <= end) return slot;
+    }
+    // Hiçbiri eşleşmezse en yakın başlangıca sahip olanı döndür
+    return slots[0];
+}
+
+const STATUS_LABELS = {
+    'FREE':     { label: 'Serbest',   cls: 'tag-free', icon: 'fa-circle-check' },
+    'IN_USE':   { label: 'Kullanımda', cls: 'tag-busy', icon: 'fa-circle-xmark' },
+    'RESERVED': { label: 'Rezerve',   cls: 'tag-busy', icon: 'fa-clock' },
+    'FAULTED':  { label: 'Arızalı',   cls: 'tag-busy', icon: 'fa-triangle-exclamation' },
+    'OFFLINE':  { label: 'Çevrimdışı',cls: 'tag-busy', icon: 'fa-wifi' },
+};
+
 function renderSockets(sockets, isFallback) {
     const card = document.getElementById('socketsCard');
     const list = document.getElementById('socketsList');
@@ -155,32 +189,41 @@ function renderSockets(sockets, isFallback) {
         return;
     }
 
-    // Soket detay bilgisi var mı? (API'den geldiğinde type alanı dolu olur)
-    const hasDetail = sockets[0].type;
-
-    if (!hasDetail) {
-        // Sadece sayı bilgisi var (fallback list verisi)
+    if (!sockets[0].type) {
         list.innerHTML = `
             <div class="socket-item">
                 <div class="socket-icon ac"><i class="fa-solid fa-plug"></i></div>
                 <div class="socket-info">
                     <div class="socket-name">${sockets.length} Soket</div>
-                    <div class="socket-details">
-                        <span class="socket-tag">Detay için bağlantı bekleniyor</span>
-                    </div>
+                    <div class="socket-details"><span class="socket-tag">Detay bilgisi yükleniyor</span></div>
                 </div>
             </div>`;
         return;
     }
 
     list.innerHTML = sockets.map(sk => {
-        const avail  = sk.availability && sk.availability[0] ? sk.availability[0].status : null;
-        const price  = sk.price != null ? sk.price : (sk.prices && sk.prices[0] ? sk.prices[0].price : null);
+        // O anki saat dilimiyle eşleşen availability ve price slot'unu bul
+        const activeAvail = getActiveSlot(sk.availability);
+        const activePrice = getActiveSlot(sk.prices);
+
+        const status = activeAvail ? activeAvail.status : null;
+        const price  = activePrice ? activePrice.price : (sk.price != null ? sk.price : null);
         const isDC   = sk.type === 'DC';
 
+        // Durum badge'i
         let statusBadge = '';
-        if (avail === 'FREE')     statusBadge = '<span class="socket-tag tag-free"><i class="fa-solid fa-circle-check"></i> Serbest</span>';
-        else if (avail)           statusBadge = `<span class="socket-tag tag-busy"><i class="fa-solid fa-circle-xmark"></i> ${avail}</span>`;
+        if (status) {
+            const info = STATUS_LABELS[status] || { label: status, cls: 'tag-busy', icon: 'fa-circle' };
+            statusBadge = `<span class="socket-tag ${info.cls}"><i class="fa-solid ${info.icon}"></i> ${info.label}</span>`;
+        }
+
+        // Fiyat zaman dilimi bilgisi
+        let priceNote = '';
+        if (activePrice && activePrice.startTime && activePrice.endTime) {
+            const s = new Date(activePrice.startTime).toLocaleTimeString('tr', { hour:'2-digit', minute:'2-digit' });
+            const e = new Date(activePrice.endTime).toLocaleTimeString('tr', { hour:'2-digit', minute:'2-digit' });
+            priceNote = `<span style="font-size:.68rem;color:var(--text-dim)">${s}–${e}</span>`;
+        }
 
         return `
         <div class="socket-item">
@@ -193,6 +236,7 @@ function renderSockets(sockets, isFallback) {
                     <span class="socket-tag">${sk.type}</span>
                     ${sk.power ? `<span class="socket-power">${sk.power} kW</span>` : ''}
                     ${price != null ? `<span class="socket-price">₺${parseFloat(price).toFixed(2)}/kWh</span>` : ''}
+                    ${priceNote}
                     ${statusBadge}
                 </div>
                 ${sk.socketNumber ? `<div style="font-size:.7rem;color:var(--text-dim);margin-top:4px;font-family:monospace">${esc(sk.socketNumber)}</div>` : ''}
