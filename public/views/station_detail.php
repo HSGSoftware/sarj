@@ -239,8 +239,10 @@ function renderSockets(sockets, isFallback) {
         }
 
         // SoC sadece aktif şarj/bağlanma halinde göster
+        // Hem availability.status hem sk.status kontrol et
         const socActiveStatuses = ['CHARGING', 'PREPARING', 'IN_USE'];
-        const soc = (sk.soc != null && socActiveStatuses.includes(status)) ? parseInt(sk.soc) : null;
+        const effectiveStatus = status || sk.status || '';
+        const soc = (sk.soc != null && socActiveStatuses.includes(effectiveStatus)) ? parseInt(sk.soc) : null;
 
         // Fiyat zaman dilimi bilgisi
         let priceNote = '';

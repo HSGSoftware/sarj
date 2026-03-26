@@ -161,7 +161,8 @@ class AstorApi
                 'power'       => $power,
                 'price'       => $price,
                 'currency'    => $tariff['currencySymbol'] ?? '₺',
-                'soc'         => $soc,           // Araç şarj yüzdesi
+                // SoC sadece aktif şarj durumunda anlamlıdır
+                'soc'         => in_array($status, ['CHARGING', 'PREPARING', 'IN_USE']) ? $soc : null,
                 'status'      => $status,
                 'availability'=> [[
                     'status'    => $status,
