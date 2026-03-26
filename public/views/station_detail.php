@@ -204,13 +204,14 @@ function renderSocBar(soc, status) {
 }
 
 const STATUS_LABELS = {
-    'FREE':      { label: 'Serbest',      cls: 'tag-free', icon: 'fa-circle-check' },
-    'IN_USE':    { label: 'Kullanımda',   cls: 'tag-busy', icon: 'fa-circle-xmark' },
-    'CHARGING':  { label: 'Şarj Oluyor',  cls: 'tag-charging', icon: 'fa-bolt' },
-    'PREPARING': { label: 'Bağlanıyor',   cls: 'tag-charging', icon: 'fa-plug' },
-    'RESERVED':  { label: 'Rezerve',     cls: 'tag-busy', icon: 'fa-clock' },
-    'FAULTED':   { label: 'Arızalı',     cls: 'tag-busy', icon: 'fa-triangle-exclamation' },
-    'OFFLINE':   { label: 'Çevrimdışı', cls: 'tag-busy', icon: 'fa-wifi' },
+    'FREE':        { label: 'Serbest',       cls: 'tag-free',     icon: 'fa-circle-check' },
+    'IN_USE':      { label: 'Kullanımda',    cls: 'tag-busy',     icon: 'fa-circle-xmark' },
+    'CHARGING':    { label: 'Şarj Oluyor',   cls: 'tag-charging', icon: 'fa-bolt' },
+    'PREPARING':   { label: 'Bağlanıyor',    cls: 'tag-charging', icon: 'fa-plug' },
+    'RESERVED':    { label: 'Rezerve',       cls: 'tag-busy',     icon: 'fa-clock' },
+    'FAULTED':     { label: 'Arızalı',       cls: 'tag-faulted',  icon: 'fa-triangle-exclamation' },
+    'UNAVAILABLE': { label: 'Kullanım Dışı', cls: 'tag-faulted',  icon: 'fa-ban' },
+    'OFFLINE':     { label: 'Çevrimdışı',    cls: 'tag-faulted',  icon: 'fa-wifi' },
 };
 
 function renderSockets(sockets, isFallback) {
@@ -239,12 +240,13 @@ function renderSockets(sockets, isFallback) {
         // subType normalize et
         sk = {...sk, subType: normalizeSubType(sk.subType, sk.type)};
 
-        // O anki saat dilimiyle eşleşen availability ve price slot'unu bul
+        // Beefull verisi: sk.status direkt kullan; EPDK verisi: getActiveSlot ile zaman dilimi
         const activeAvail = getActiveSlot(sk.availability);
         const activePrice = getActiveSlot(sk.prices);
 
-        const status = activeAvail ? activeAvail.status : null;
-        const price  = activePrice ? activePrice.price : (sk.price != null ? sk.price : null);
+        // sk.status (Beefull) varsa öncelikli, yoksa availability slot'undan al
+        const status = sk.status || (activeAvail ? activeAvail.status : null);
+        const price  = sk.price != null ? sk.price : (activePrice ? activePrice.price : null);
         const isDC   = sk.type === 'DC';
 
         // Durum badge'i
@@ -255,14 +257,12 @@ function renderSockets(sockets, isFallback) {
         }
 
         // SoC sadece aktif şarj/bağlanma halinde göster
-        // Hem availability.status hem sk.status kontrol et
         const socActiveStatuses = ['CHARGING', 'PREPARING', 'IN_USE'];
-        const effectiveStatus = status || sk.status || '';
-        const soc = (sk.soc != null && socActiveStatuses.includes(effectiveStatus)) ? parseInt(sk.soc) : null;
+        const soc = (sk.soc != null && socActiveStatuses.includes(status)) ? parseInt(sk.soc) : null;
 
-        // Fiyat zaman dilimi bilgisi
+        // Fiyat zaman dilimi (sadece EPDK verisi için anlamlı)
         let priceNote = '';
-        if (activePrice && activePrice.startTime && activePrice.endTime) {
+        if (!sk.source && activePrice && activePrice.startTime && activePrice.endTime) {
             const s = new Date(activePrice.startTime).toLocaleTimeString('tr', { hour:'2-digit', minute:'2-digit' });
             const e = new Date(activePrice.endTime).toLocaleTimeString('tr', { hour:'2-digit', minute:'2-digit' });
             priceNote = `<span style="font-size:.68rem;color:var(--text-dim)">${s}–${e}</span>`;
