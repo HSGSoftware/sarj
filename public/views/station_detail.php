@@ -171,12 +171,33 @@ function getActiveSlot(slots) {
     return slots[0];
 }
 
+function renderSocBar(soc, status) {
+    const isCharging = status === 'CHARGING' || status === 'PREPARING';
+    const color = soc >= 80 ? '#22c55e' : soc >= 40 ? '#f97316' : '#ef4444';
+    const label = isCharging ? `Şarj oluyor – %${soc}` : `Araç: %${soc}`;
+    return `
+    <div style="margin-top:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <span style="font-size:.72rem;color:var(--text-muted);display:flex;align-items:center;gap:4px">
+                ${isCharging ? '<i class="fa-solid fa-bolt" style="color:#22c55e;font-size:.65rem"></i>' : '<i class="fa-solid fa-car" style="font-size:.65rem"></i>'}
+                ${label}
+            </span>
+            <span style="font-size:.72rem;font-weight:700;color:${color}">%${soc}</span>
+        </div>
+        <div style="height:6px;background:var(--bg3);border-radius:99px;overflow:hidden">
+            <div style="height:100%;width:${soc}%;background:${color};border-radius:99px;transition:.5s ease"></div>
+        </div>
+    </div>`;
+}
+
 const STATUS_LABELS = {
-    'FREE':     { label: 'Serbest',   cls: 'tag-free', icon: 'fa-circle-check' },
-    'IN_USE':   { label: 'Kullanımda', cls: 'tag-busy', icon: 'fa-circle-xmark' },
-    'RESERVED': { label: 'Rezerve',   cls: 'tag-busy', icon: 'fa-clock' },
-    'FAULTED':  { label: 'Arızalı',   cls: 'tag-busy', icon: 'fa-triangle-exclamation' },
-    'OFFLINE':  { label: 'Çevrimdışı',cls: 'tag-busy', icon: 'fa-wifi' },
+    'FREE':      { label: 'Serbest',      cls: 'tag-free', icon: 'fa-circle-check' },
+    'IN_USE':    { label: 'Kullanımda',   cls: 'tag-busy', icon: 'fa-circle-xmark' },
+    'CHARGING':  { label: 'Şarj Oluyor', cls: 'tag-charging', icon: 'fa-bolt' },
+    'PREPARING': { label: 'Hazırlanıyor',cls: 'tag-charging', icon: 'fa-spinner' },
+    'RESERVED':  { label: 'Rezerve',     cls: 'tag-busy', icon: 'fa-clock' },
+    'FAULTED':   { label: 'Arızalı',     cls: 'tag-busy', icon: 'fa-triangle-exclamation' },
+    'OFFLINE':   { label: 'Çevrimdışı', cls: 'tag-busy', icon: 'fa-wifi' },
 };
 
 function renderSockets(sockets, isFallback) {
@@ -217,6 +238,9 @@ function renderSockets(sockets, isFallback) {
             statusBadge = `<span class="socket-tag ${info.cls}"><i class="fa-solid ${info.icon}"></i> ${info.label}</span>`;
         }
 
+        // SoC (State of Charge) - araç şarj yüzdesi
+        const soc = sk.soc != null ? parseInt(sk.soc) : null;
+
         // Fiyat zaman dilimi bilgisi
         let priceNote = '';
         if (activePrice && activePrice.startTime && activePrice.endTime) {
@@ -240,6 +264,7 @@ function renderSockets(sockets, isFallback) {
                     ${statusBadge}
                 </div>
                 ${sk.socketNumber ? `<div style="font-size:.7rem;color:var(--text-dim);margin-top:4px;font-family:monospace">${esc(sk.socketNumber)}</div>` : ''}
+                ${soc !== null ? renderSocBar(soc, status) : ''}
             </div>
         </div>`;
     }).join('');

@@ -24,13 +24,17 @@ switch ($action) {
             http_response_code(404);
             echo json_encode(['error' => 'not found']);
         } else {
-            // Astor istasyonuysa soketleri Beefull'dan al
+            // Astor istasyonuysa Beefull'dan koordinat bazlı soket+SoC verisi al
             if (strtoupper($detail['brand'] ?? '') === 'ASTOR') {
-                $astorApi = new \App\Api\AstorApi();
-                $astorSockets = $astorApi->getSocketsByEpdkId($id);
-                if ($astorSockets !== null) {
-                    $detail['sockets']       = $astorSockets;
-                    $detail['socketSource']  = 'astor_beefull';
+                $lat = $detail['lat'] ?? null;
+                $lng = $detail['lng'] ?? null;
+                if ($lat && $lng) {
+                    $astorApi     = new \App\Api\AstorApi();
+                    $astorSockets = $astorApi->getSocketsByCoord((float)$lat, (float)$lng);
+                    if ($astorSockets !== null) {
+                        $detail['sockets']      = $astorSockets;
+                        $detail['socketSource'] = 'astor_beefull';
+                    }
                 }
             }
             echo json_encode($detail, JSON_UNESCAPED_UNICODE);
