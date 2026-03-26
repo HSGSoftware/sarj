@@ -238,8 +238,8 @@ function renderSockets(sockets, isFallback) {
             statusBadge = `<span class="socket-tag ${info.cls}"><i class="fa-solid ${info.icon}"></i> ${info.label}</span>`;
         }
 
-        // SoC (State of Charge) - araç şarj yüzdesi
-        const soc = sk.soc != null ? parseInt(sk.soc) : null;
+        // SoC sadece soket doluyken göster (FREE ise geçmiş veri olabilir)
+        const soc = (sk.soc != null && status !== 'FREE') ? parseInt(sk.soc) : null;
 
         // Fiyat zaman dilimi bilgisi
         let priceNote = '';
