@@ -68,18 +68,15 @@ class AstorApi
             );
         }
 
-        // Koordinat eşleştirme: ~100m tolerans (0.001 derece)
         $found = [];
         foreach ($list as $item) {
             if (!isset($item['coordinate']['latitude'], $item['coordinate']['longitude'])) continue;
             $iLat = (float)$item['coordinate']['latitude'];
             $iLng = (float)$item['coordinate']['longitude'];
-            $d = sqrt(($lat - $iLat) ** 2 + ($lng - $iLng) ** 2);
-            if ($d <= 0.001) {
+            if (abs($lat - $iLat) <= 0.000001 && abs($lng - $iLng) <= 0.000001) {
                 $found[] = $item['id'];
             }
         }
-
         return $found;
     }
 
