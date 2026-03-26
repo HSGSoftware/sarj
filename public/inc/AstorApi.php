@@ -220,7 +220,7 @@ class AstorApi
         return sys_get_temp_dir() . '/sarjnet_' . md5($key) . '.json';
     }
 
-    private function getFromCache(string $key): mixed
+    private function getFromCache(string $key)
     {
         $file = $this->getCacheFile($key);
         if (!file_exists($file)) return null;
@@ -230,7 +230,7 @@ class AstorApi
         return $data ? json_decode($data, true) : null;
     }
 
-    private function saveToCache(string $key, mixed $data): void
+    private function saveToCache(string $key, $data): void
     {
         file_put_contents($this->getCacheFile($key), json_encode($data, JSON_UNESCAPED_UNICODE));
     }

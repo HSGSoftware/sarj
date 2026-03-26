@@ -8,7 +8,13 @@ $api    = new \App\Api\EpdkApi();
 
 switch ($action) {
     case 'stations':
-        echo json_encode($api->getAllStations(), JSON_UNESCAPED_UNICODE);
+        // Statik dosyayı doğrudan serve et — PHP decode/encode overhead yok
+        $staticFile = __DIR__ . '/assets/stations_data.json';
+        if (file_exists($staticFile)) {
+            readfile($staticFile);
+        } else {
+            echo json_encode($api->getAllStations(), JSON_UNESCAPED_UNICODE);
+        }
         break;
 
     case 'detail':

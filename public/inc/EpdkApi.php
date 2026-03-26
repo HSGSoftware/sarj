@@ -41,7 +41,7 @@ class EpdkApi
         return sys_get_temp_dir() . '/sarjnet_' . md5($key) . '.json';
     }
 
-    private function getFromCache(string $key): mixed
+    private function getFromCache(string $key)
     {
         $file = $this->getCacheFile($key);
         if (!file_exists($file) || (time() - filemtime($file)) > self::CACHE_TTL) {
@@ -51,33 +51,27 @@ class EpdkApi
         return $data ? json_decode($data, true) : null;
     }
 
-    private function saveToCache(string $key, mixed $data): void
+    private function saveToCache(string $key, $data): void
     {
         file_put_contents($this->getCacheFile($key), json_encode($data, JSON_UNESCAPED_UNICODE));
     }
 
     public function getAllStations(): array
     {
-        $cached = $this->getFromCache('stations_v2');
-        if ($cached !== null) {
-            return $cached;
-        }
-
-        $raw = $this->fetch(self::SARJET_URL . '/stations');
-
-        if ($raw !== null) {
-            $data = json_decode($raw, true);
+        // Statik dosya öncelikli — her zaman hızlı ve güvenilir
+        $staticFile = ROOT_PATH . '/assets/stations_data.json';
+        if (file_exists($staticFile)) {
+            $data = json_decode(file_get_contents($staticFile), true);
             if (is_array($data) && count($data) > 0) {
-                $this->saveToCache('stations_v2', $data);
                 return $data;
             }
         }
 
-        // Fallback: statik veri
-        $staticFile = ROOT_PATH . '/assets/stations_data.json';
-        if (file_exists($staticFile)) {
-            $data = json_decode(file_get_contents($staticFile), true);
-            if ($data) {
+        // Fallback: canlı API
+        $raw = $this->fetch(self::SARJET_URL . '/stations');
+        if ($raw !== null) {
+            $data = json_decode($raw, true);
+            if (is_array($data) && count($data) > 0) {
                 return $data;
             }
         }
@@ -85,7 +79,7 @@ class EpdkApi
         return [];
     }
 
-    public function getStationDetail(int|string $id, string $date = ''): ?array
+    public function getStationDetail($id, string $date = ''): ?array
     {
         if (!$date) {
             $date = date('Y-m-d H:i:s');

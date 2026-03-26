@@ -1,5 +1,5 @@
 <?php
-define('ROOT_PATH', __DIR__ . '/..');
+define('ROOT_PATH', realpath(__DIR__ . '/..') ?: __DIR__ . '/..');
 define('APP_NAME', 'ŞarjNet – Şarj İstasyonu Platformu');
 
 /**
