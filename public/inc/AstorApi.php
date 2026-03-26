@@ -68,22 +68,19 @@ class AstorApi
             );
         }
 
-        // Kademeli tolerans: 100m → 300m → 1km → 5km
-        foreach ([0.001, 0.003, 0.01, 0.05] as $tol) {
-            $found = [];
-            foreach ($list as $item) {
-                if (!isset($item['coordinate']['latitude'], $item['coordinate']['longitude'])) continue;
-                $iLat = (float)$item['coordinate']['latitude'];
-                $iLng = (float)$item['coordinate']['longitude'];
-                $d = sqrt(($lat - $iLat) ** 2 + ($lng - $iLng) ** 2);
-                if ($d <= $tol) {
-                    $found[] = $item['id'];
-                }
+        // Koordinat eşleştirme: ~100m tolerans (0.001 derece)
+        $found = [];
+        foreach ($list as $item) {
+            if (!isset($item['coordinate']['latitude'], $item['coordinate']['longitude'])) continue;
+            $iLat = (float)$item['coordinate']['latitude'];
+            $iLng = (float)$item['coordinate']['longitude'];
+            $d = sqrt(($lat - $iLat) ** 2 + ($lng - $iLng) ** 2);
+            if ($d <= 0.001) {
+                $found[] = $item['id'];
             }
-            if (!empty($found)) return $found;
         }
 
-        return [];
+        return $found;
     }
 
     /** Detay API'sinden children → normalleştirilmiş soket listesi */
