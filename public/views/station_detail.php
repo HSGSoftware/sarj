@@ -1,5 +1,5 @@
 <?php
-$stationId = (int)($_GET['id'] ?? 0);
+$stationId = $_GET['id'] ?? '0';  // bf_XXX veya numericId
 ?>
 <?php require __DIR__ . '/partials/header.php'; ?>
 
@@ -47,7 +47,7 @@ $stationId = (int)($_GET['id'] ?? 0);
 <?php require __DIR__ . '/partials/tab_bar.php'; ?>
 
 <script>
-const stationId = <?= (int)$stationId ?>;
+const stationId = <?= json_encode($stationId) ?>;
 let detailMap = null;
 
 document.addEventListener('DOMContentLoaded', () => {

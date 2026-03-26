@@ -3,73 +3,70 @@ require_once __DIR__ . '/inc/bootstrap.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
-$action = $_GET['action'] ?? '';
-$api    = new \App\Api\EpdkApi();
+$action   = $_GET['action'] ?? '';
+$epdkApi  = new \App\Api\EpdkApi();
+$astorApi = new \App\Api\AstorApi();
 
 switch ($action) {
+
     case 'stations':
-        // Statik dosyayı doğrudan serve et — PHP decode/encode overhead yok
+        // EPDK'dan astor/beefull HARİÇ tüm istasyonlar
         $staticFile = __DIR__ . '/assets/stations_data.json';
         if (file_exists($staticFile)) {
-            readfile($staticFile);
+            $allEpdk = json_decode(file_get_contents($staticFile), true) ?: [];
         } else {
-            echo json_encode($api->getAllStations(), JSON_UNESCAPED_UNICODE);
+            $allEpdk = $epdkApi->getAllStations();
         }
+        $epdk = array_values(array_filter($allEpdk, function($s) {
+            $brand = strtolower($s['brand'] ?? '');
+            return !in_array($brand, ['astor', 'beefull']);
+        }));
+
+        // Beefull API'sinden astor+beefull istasyonları
+        $beefullStations = $astorApi->getAllStations();
+
+        $combined = array_merge($epdk, $beefullStations);
+        echo json_encode($combined, JSON_UNESCAPED_UNICODE);
         break;
 
     case 'detail':
-        $id   = (int)($_GET['id'] ?? 0);
+        $id   = $_GET['id'] ?? '';
         $date = $_GET['date'] ?? date('Y-m-d H:i:s');
-        if (!$id) {
+
+        // Beefull istasyonu (id = "bf_XXXX")
+        if (strpos($id, 'bf_') === 0) {
+            $beefullId  = (int)substr($id, 3);
+            $allBf      = $astorApi->getAllStations();
+            $station    = null;
+            foreach ($allBf as $s) {
+                if ($s['beefull_id'] === $beefullId) { $station = $s; break; }
+            }
+            if (!$station) {
+                http_response_code(404);
+                echo json_encode(['error' => 'not found']);
+                break;
+            }
+            $sockets = $astorApi->getSocketsByBeefullId($beefullId, $station['tenantCode'] ?? 'astor');
+            $station['sockets']      = $sockets ?: [];
+            $station['socketSource'] = 'beefull';
+            echo json_encode($station, JSON_UNESCAPED_UNICODE);
+            break;
+        }
+
+        // EPDK istasyonu
+        $epdkId = (int)$id;
+        if (!$epdkId) {
             http_response_code(400);
             echo json_encode(['error' => 'id required']);
             break;
         }
-        $detail = $api->getStationDetail($id, $date);
+        $detail = $epdkApi->getStationDetail($epdkId, $date);
         if ($detail === null) {
             http_response_code(404);
             echo json_encode(['error' => 'not found']);
-        } else {
-            // Beefull altyapısı kullanan markalar: ASTOR, beefull
-            $brand = strtolower($detail['brand'] ?? '');
-            if (in_array($brand, ['astor', 'beefull'])) {
-                $lat = $detail['lat'] ?? null;
-                $lng = $detail['lng'] ?? null;
-                if ($lat && $lng) {
-                    $astorApi     = new \App\Api\AstorApi();
-                    $astorSockets = $astorApi->getSocketsByCoord((float)$lat, (float)$lng);
-                    if ($astorSockets !== null) {
-                        $detail['sockets']      = $astorSockets;
-                        $detail['socketSource'] = 'beefull';
-                    }
-                }
-            }
-            echo json_encode($detail, JSON_UNESCAPED_UNICODE);
-        }
-        break;
-
-    case 'astor_sockets':
-        // Direkt Beefull ID ile sorgu
-        $beefullId = (int)($_GET['beefull_id'] ?? 0);
-        $epdkId    = (int)($_GET['epdk_id'] ?? 0);
-        $astorApi  = new \App\Api\AstorApi();
-
-        if ($beefullId) {
-            $sockets = $astorApi->getSocketsByBeefullId($beefullId);
-        } elseif ($epdkId) {
-            $sockets = $astorApi->getSocketsByEpdkId($epdkId);
-        } else {
-            http_response_code(400);
-            echo json_encode(['error' => 'beefull_id or epdk_id required']);
             break;
         }
-
-        if ($sockets === null) {
-            http_response_code(404);
-            echo json_encode(['error' => 'not found or no match']);
-        } else {
-            echo json_encode($sockets, JSON_UNESCAPED_UNICODE);
-        }
+        echo json_encode($detail, JSON_UNESCAPED_UNICODE);
         break;
 
     default:
