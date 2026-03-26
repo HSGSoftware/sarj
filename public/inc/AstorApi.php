@@ -24,10 +24,16 @@ class AstorApi
         $beefullIds = $this->findIdsByCoord($lat, $lng);
         if (empty($beefullIds)) return null;
 
-        // 2. Aşama: her ID için detay çek ve birleştir
+        // 2. Aşama: her ID için detay çek (önce astor, boşsa beefull tenant dene)
         $allSockets = [];
         foreach ($beefullIds as $id) {
-            $sockets = $this->fetchDetailSockets((int)$id);
+            $sockets = $this->fetchDetailSockets((int)$id, 'astor');
+            if (!$sockets) {
+                $sockets = $this->fetchDetailSockets((int)$id, 'beefull');
+            }
+            if (!$sockets) {
+                $sockets = $this->fetchDetailSockets((int)$id, '');
+            }
             if ($sockets) {
                 $allSockets = array_merge($allSockets, $sockets);
             }
@@ -56,54 +62,37 @@ class AstorApi
             if (!$raw) return [];
             $list = json_decode($raw, true);
             if (!is_array($list)) return [];
-            // grouped listeyi 10 dakika cache'le
             file_put_contents(
                 sys_get_temp_dir() . '/sarjnet_' . md5($cacheKey) . '.json',
                 json_encode($list)
             );
         }
 
-        $latStr = (string)$lat;
-        $lngStr = (string)$lng;
-        $found  = [];
-
-        foreach ($list as $item) {
-            $iLat = (string)($item['coordinate']['latitude']  ?? '');
-            $iLng = (string)($item['coordinate']['longitude'] ?? '');
-            // İlk 7 karakter eşleşmesi (±~10m tolerans)
-            if (
-                strlen($iLat) >= 7 && strlen($latStr) >= 7 &&
-                strlen($iLng) >= 7 && strlen($lngStr) >= 7 &&
-                substr($iLat, 0, 7) === substr($latStr, 0, 7) &&
-                substr($iLng, 0, 7) === substr($lngStr, 0, 7)
-            ) {
-                $found[] = $item['id'];
-            }
-        }
-
-        // Bulunamazsa daha geniş toleransla (ilk 5 karakter)
-        if (empty($found)) {
+        // Kademeli tolerans: 100m → 300m → 1km → 5km
+        foreach ([0.001, 0.003, 0.01, 0.05] as $tol) {
+            $found = [];
             foreach ($list as $item) {
-                $iLat = (string)($item['coordinate']['latitude']  ?? '');
-                $iLng = (string)($item['coordinate']['longitude'] ?? '');
-                if (
-                    strlen($iLat) >= 5 && strlen($latStr) >= 5 &&
-                    strlen($iLng) >= 5 && strlen($lngStr) >= 5 &&
-                    substr($iLat, 0, 5) === substr($latStr, 0, 5) &&
-                    substr($iLng, 0, 5) === substr($lngStr, 0, 5)
-                ) {
+                if (!isset($item['coordinate']['latitude'], $item['coordinate']['longitude'])) continue;
+                $iLat = (float)$item['coordinate']['latitude'];
+                $iLng = (float)$item['coordinate']['longitude'];
+                $d = sqrt(($lat - $iLat) ** 2 + ($lng - $iLng) ** 2);
+                if ($d <= $tol) {
                     $found[] = $item['id'];
                 }
             }
+            if (!empty($found)) return $found;
         }
 
-        return $found;
+        return [];
     }
 
     /** Detay API'sinden children → normalleştirilmiş soket listesi */
-    private function fetchDetailSockets(int $beefullId): ?array
+    private function fetchDetailSockets(int $beefullId, string $tenantCode = 'astor'): ?array
     {
-        $url = self::GW_BASE . '/charge-points-alternative/' . $beefullId . '?tenantCode=astor';
+        $url = self::GW_BASE . '/charge-points-alternative/' . $beefullId;
+        if ($tenantCode !== '') {
+            $url .= '?tenantCode=' . $tenantCode;
+        }
         $raw = $this->curl($url, [
             'inavitas-tenant: astor',
             'authorization: ' . self::AUTH,

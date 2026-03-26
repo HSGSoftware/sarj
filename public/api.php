@@ -30,8 +30,9 @@ switch ($action) {
             http_response_code(404);
             echo json_encode(['error' => 'not found']);
         } else {
-            // Astor istasyonuysa Beefull'dan koordinat bazlı soket+SoC verisi al
-            if (strtoupper($detail['brand'] ?? '') === 'ASTOR') {
+            // Beefull altyapısı kullanan markalar: ASTOR, beefull
+            $brand = strtolower($detail['brand'] ?? '');
+            if (in_array($brand, ['astor', 'beefull'])) {
                 $lat = $detail['lat'] ?? null;
                 $lng = $detail['lng'] ?? null;
                 if ($lat && $lng) {
@@ -39,7 +40,7 @@ switch ($action) {
                     $astorSockets = $astorApi->getSocketsByCoord((float)$lat, (float)$lng);
                     if ($astorSockets !== null) {
                         $detail['sockets']      = $astorSockets;
-                        $detail['socketSource'] = 'astor_beefull';
+                        $detail['socketSource'] = 'beefull';
                     }
                 }
             }
