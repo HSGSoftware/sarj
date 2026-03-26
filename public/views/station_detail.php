@@ -238,8 +238,9 @@ function renderSockets(sockets, isFallback) {
             statusBadge = `<span class="socket-tag ${info.cls}"><i class="fa-solid ${info.icon}"></i> ${info.label}</span>`;
         }
 
-        // SoC sadece soket doluyken göster (FREE ise geçmiş veri olabilir)
-        const soc = (sk.soc != null && status !== 'FREE') ? parseInt(sk.soc) : null;
+        // SoC sadece aktif şarj/bağlanma halinde göster
+        const socActiveStatuses = ['CHARGING', 'PREPARING', 'IN_USE'];
+        const soc = (sk.soc != null && socActiveStatuses.includes(status)) ? parseInt(sk.soc) : null;
 
         // Fiyat zaman dilimi bilgisi
         let priceNote = '';
