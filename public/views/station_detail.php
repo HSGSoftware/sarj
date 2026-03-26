@@ -171,6 +171,19 @@ function getActiveSlot(slots) {
     return slots[0];
 }
 
+function normalizeSubType(subType, type) {
+    const map = {
+        'DC_CCS':    'DC_CCS2',
+        'DC_CCS1':   'DC_CCS1',
+        'DC_CCS2':   'DC_CCS2',
+        'DC_CHADEMO':'DC_CHAdeMO',
+        'AC_TYPE2':  'AC Type 2',
+        'AC_TYPE1':  'AC Type 1',
+        'AC_SCHUKO': 'AC Schuko',
+    };
+    return map[subType] || subType || type || '—';
+}
+
 function renderSocBar(soc, status) {
     const isCharging = status === 'CHARGING' || status === 'PREPARING';
     const color = soc >= 80 ? '#22c55e' : soc >= 40 ? '#f97316' : '#ef4444';
@@ -223,6 +236,9 @@ function renderSockets(sockets, isFallback) {
     }
 
     list.innerHTML = sockets.map(sk => {
+        // subType normalize et
+        sk = {...sk, subType: normalizeSubType(sk.subType, sk.type)};
+
         // O anki saat dilimiyle eşleşen availability ve price slot'unu bul
         const activeAvail = getActiveSlot(sk.availability);
         const activePrice = getActiveSlot(sk.prices);
