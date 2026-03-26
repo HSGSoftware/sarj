@@ -193,8 +193,8 @@ function renderSocBar(soc, status) {
 const STATUS_LABELS = {
     'FREE':      { label: 'Serbest',      cls: 'tag-free', icon: 'fa-circle-check' },
     'IN_USE':    { label: 'Kullanımda',   cls: 'tag-busy', icon: 'fa-circle-xmark' },
-    'CHARGING':  { label: 'Şarj Oluyor', cls: 'tag-charging', icon: 'fa-bolt' },
-    'PREPARING': { label: 'Hazırlanıyor',cls: 'tag-charging', icon: 'fa-spinner' },
+    'CHARGING':  { label: 'Şarj Oluyor',  cls: 'tag-charging', icon: 'fa-bolt' },
+    'PREPARING': { label: 'Bağlanıyor',   cls: 'tag-charging', icon: 'fa-plug' },
     'RESERVED':  { label: 'Rezerve',     cls: 'tag-busy', icon: 'fa-clock' },
     'FAULTED':   { label: 'Arızalı',     cls: 'tag-busy', icon: 'fa-triangle-exclamation' },
     'OFFLINE':   { label: 'Çevrimdışı', cls: 'tag-busy', icon: 'fa-wifi' },
