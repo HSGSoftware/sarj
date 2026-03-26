@@ -24,7 +24,40 @@ switch ($action) {
             http_response_code(404);
             echo json_encode(['error' => 'not found']);
         } else {
+            // Astor istasyonuysa soketleri Beefull'dan al
+            if (strtoupper($detail['brand'] ?? '') === 'ASTOR') {
+                $astorApi = new \App\Api\AstorApi();
+                $astorSockets = $astorApi->getSocketsByEpdkId($id);
+                if ($astorSockets !== null) {
+                    $detail['sockets']       = $astorSockets;
+                    $detail['socketSource']  = 'astor_beefull';
+                }
+            }
             echo json_encode($detail, JSON_UNESCAPED_UNICODE);
+        }
+        break;
+
+    case 'astor_sockets':
+        // Direkt Beefull ID ile sorgu
+        $beefullId = (int)($_GET['beefull_id'] ?? 0);
+        $epdkId    = (int)($_GET['epdk_id'] ?? 0);
+        $astorApi  = new \App\Api\AstorApi();
+
+        if ($beefullId) {
+            $sockets = $astorApi->getSocketsByBeefullId($beefullId);
+        } elseif ($epdkId) {
+            $sockets = $astorApi->getSocketsByEpdkId($epdkId);
+        } else {
+            http_response_code(400);
+            echo json_encode(['error' => 'beefull_id or epdk_id required']);
+            break;
+        }
+
+        if ($sockets === null) {
+            http_response_code(404);
+            echo json_encode(['error' => 'not found or no match']);
+        } else {
+            echo json_encode($sockets, JSON_UNESCAPED_UNICODE);
         }
         break;
 
